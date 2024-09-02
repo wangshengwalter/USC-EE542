@@ -13,6 +13,17 @@ void error(const char *msg) {
     exit(1);
 }
 
+void dostuff(int sock) {
+
+    char buffer[256];
+    bzero(buffer,256);
+    int n = read(sock,buffer,255);
+    if (n < 0) error("ERROR reading from socket");
+    printf("Here is the message: %s\n",buffer);
+    n = write(sock,"I got your message",18);
+    if (n < 0) error("ERROR writing to socket");
+}
+
 int main(int argc, char *argv[]) {
     int sockfd, newsockfd, portno;
     socklen_t clilen;
@@ -73,15 +84,4 @@ int main(int argc, char *argv[]) {
     }
 
     return 0; 
-}
-
-void dostuff(int sock) {
-
-    char buffer[256];
-    bzero(buffer,256);
-    int n = read(sock,buffer,255);
-    if (n < 0) error("ERROR reading from socket");
-    printf("Here is the message: %s\n",buffer);
-    n = write(sock,"I got your message",18);
-    if (n < 0) error("ERROR writing to socket");
 }
