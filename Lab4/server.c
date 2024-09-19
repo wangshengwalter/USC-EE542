@@ -7,7 +7,7 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 
-#define MAX_PACKET_SIZE 1024*1024 // 1MB
+#define MAX_PACKET_SIZE 1024 // 1MB
 #define ACK_TIMEOUT 1 // 1 second timeout for ACK
 
 typedef struct {
