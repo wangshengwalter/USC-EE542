@@ -12,7 +12,7 @@
 #define MAX_PACKET_SIZE 1500
 #define MAX_FILENAME_SIZE 256
 #define DEFAULT_WINDOW_SIZE 50
-#define DEFAULT_TIMEOUT 40.0
+#define DEFAULT_TIMEOUT 80.0
 
 typedef struct {
     int seq_num;
