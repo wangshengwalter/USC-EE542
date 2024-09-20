@@ -8,7 +8,7 @@
 #include <sys/time.h>
 
 #define MAX_PACKET_SIZE 1500 
-#define ACK_TIMEOUT 1000 // 1000 msecond timeout for ACK
+#define ACK_TIMEOUT 10000 // 10000 msecond timeout for ACK
 #define MAX_RETRIES 3
 
 typedef struct {
