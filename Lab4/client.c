@@ -7,6 +7,7 @@
 #include <sys/time.h>
 #include <libgen.h>
 #include <errno.h>
+#include <chrono>
 
 #define MAX_PACKET_SIZE 1500
 #define MAX_FILENAME_SIZE 256
@@ -166,7 +167,15 @@ int main(int argc, char* argv[]) {
         }
     }
 
+
+
+    auto start = std::chrono::high_resolution_clock::now();
+
     send_file(filename, server_ip, server_port, window_size, timeout);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Elapsed time: " << elapsed.count() << " s\n";
 
     return 0;
 }
