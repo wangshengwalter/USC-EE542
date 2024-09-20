@@ -1,4 +1,3 @@
-// server.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,7 +6,7 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 
-#define MAX_PACKET_SIZE 1024 // 1MB
+#define MAX_PACKET_SIZE 1024 // 1KB
 #define ACK_TIMEOUT 1 // 1 second timeout for ACK
 
 typedef struct {
@@ -16,6 +15,13 @@ typedef struct {
     int data_size;
     char data[MAX_PACKET_SIZE - 3 * sizeof(int)];
 } Packet;
+
+// New structure to hold transfer statistics
+typedef struct {
+    struct timeval start_time;
+    struct timeval end_time;
+    size_t total_bytes;
+} TransferStats;
 
 int create_socket(const char* ip, int port) {
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -56,12 +62,23 @@ int receive_packet(int sock, Packet* packet, struct sockaddr_in* sender_addr) {
     return 0;
 }
 
+void calculate_bandwidth(TransferStats* stats) {
+    double duration = (stats->end_time.tv_sec - stats->start_time.tv_sec) +
+                      (stats->end_time.tv_usec - stats->start_time.tv_usec) / 1000000.0;
+    double bandwidth = (stats->total_bytes * 8) / (duration * 1000000); // Mbps
+
+    printf("Transfer completed in %.2f seconds\n", duration);
+    printf("Total bytes transferred: %zu\n", stats->total_bytes);
+    printf("Bandwidth: %.2f Mbps\n", bandwidth);
+}
+
 void run_server(const char* ip, int port) {
     int sock = create_socket(ip, port);
     struct sockaddr_in client_addr;
     Packet packet;
     FILE* file = NULL;
     int seq_num = 0;
+    TransferStats stats = {0};
 
     printf("Server listening on %s:%d\n", ip, port);
 
@@ -77,16 +94,21 @@ void run_server(const char* ip, int port) {
                         continue;
                     }
                     printf("Creating new file: %s\n", filename);
+                    gettimeofday(&stats.start_time, NULL); // Record start time
+                    stats.total_bytes = 0;
                 }
 
                 fwrite(packet.data, 1, packet.data_size, file);
+                stats.total_bytes += packet.data_size;
                 printf("Received packet %d (%d bytes)\n", seq_num, packet.data_size);
                 seq_num++;
 
                 if (packet.is_last) {
+                    gettimeofday(&stats.end_time, NULL); // Record end time
                     printf("File transfer complete\n");
                     fclose(file);
                     file = NULL;
+                    calculate_bandwidth(&stats);
                     seq_num = 0;
                 }
             } else {
