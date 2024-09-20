@@ -10,11 +10,9 @@
 #include <iostream>
 #include <chrono>
 
-
-
 #define MAX_PACKET_SIZE 1500
 #define MAX_FILENAME_SIZE 256
-#define DEFAULT_WINDOW_SIZE 20
+#define DEFAULT_WINDOW_SIZE 25  // Increased from 20 to 25
 #define DEFAULT_TIMEOUT 40.0
 
 typedef struct {
@@ -45,6 +43,7 @@ void send_packet(int sock, const Packet* packet, const struct sockaddr_in* serve
         perror("sendto failed");
         exit(EXIT_FAILURE);
     }
+    printf("Sent packet %d (%d bytes)\n", packet->seq_num, packet->data_size);
 }
 
 void receive_ack(int sock, int* ack, struct timeval* timeout) {
@@ -107,8 +106,6 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
             gettimeofday(&window[next_seq_num % window_size].send_time, NULL);
             window[next_seq_num % window_size].acked = 0;
 
-            printf("Sent packet %d (%d bytes)\n", next_seq_num, packet->data_size);
-
             next_seq_num++;
             if (packet->is_last) {
                 file_finished = 1;
@@ -123,15 +120,15 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
         int ack;
         receive_ack(sock, &ack, &tv);
 
-        printf("Received ACK: %d\n", ack);
-
         if (ack >= base && ack < next_seq_num) {
+            printf("Received ACK: %d (base: %d, next_seq_num: %d)\n", ack, base, next_seq_num);
             window[ack % window_size].acked = 1;
-            while (window[base % window_size].acked) {
+            while (base < next_seq_num && window[base % window_size].acked) {
                 base++;
-                if (base == next_seq_num) break;
             }
+            printf("Advanced base to: %d\n", base);
         } else if (ack == -1) {  // Timeout
+            printf("Timeout occurred. Resending unacked packets...\n");
             for (int i = base; i < next_seq_num; i++) {
                 if (!window[i % window_size].acked) {
                     send_packet(sock, &window[i % window_size].packet, &server_addr);
@@ -139,14 +136,9 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
                     printf("Resent packet %d\n", i);
                 }
             }
+        } else {
+            printf("Received unexpected ACK: %d (base: %d, next_seq_num: %d)\n", ack, base, next_seq_num);
         }
-
-        //only for testing
-        // if (base == 400)
-        // {
-        //     return;
-        // }
-        
     }
 
     free(window);
@@ -176,8 +168,6 @@ int main(int argc, char* argv[]) {
             timeout = DEFAULT_TIMEOUT;
         }
     }
-
-
 
     auto start = std::chrono::high_resolution_clock::now();
 

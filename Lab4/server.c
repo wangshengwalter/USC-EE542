@@ -8,7 +8,8 @@
 
 #define MAX_PACKET_SIZE 1500
 #define MAX_FILENAME_SIZE 256
-#define WINDOW_SIZE 20
+#define WINDOW_SIZE 25  // Increased from 20 to 25
+#define BUFFER_ZONE 5   // Additional buffer zone
 
 typedef struct {
     int seq_num;
@@ -71,16 +72,18 @@ void run_server(const char* ip, int port) {
             continue;
         }
 
-        printf("Received\n");
-        if (packet.seq_num >= base && packet.seq_num < base + WINDOW_SIZE) {
+        printf("Received packet %d for file %s (%d bytes)\n", packet.seq_num, packet.filename, packet.data_size);
+
+        // Accept packets within the window and the buffer zone
+        if (packet.seq_num >= base && packet.seq_num < base + WINDOW_SIZE + BUFFER_ZONE) {
             int index = packet.seq_num % WINDOW_SIZE;
             window[index].packet = packet;
             window[index].received = 1;
 
-            printf("Received packet %d for file %s (%d bytes)\n", packet.seq_num, packet.filename, packet.data_size);
+            printf("Accepted packet %d (base: %d, window: [%d, %d])\n", 
+                   packet.seq_num, base, base, base + WINDOW_SIZE - 1);
 
             while (window[base % WINDOW_SIZE].received) {
-                //compare the filename of the current packet with the filename of the last packet
                 if (strcmp(current_filename, packet.filename) != 0) {
                     if (file != NULL) {
                         fclose(file);
@@ -103,12 +106,15 @@ void run_server(const char* ip, int port) {
                     memset(current_filename, 0, MAX_FILENAME_SIZE);
                 }
 
-                printf("Cur base is %d\n", base);
+                printf("Processing packet %d, advancing base\n", base);
                 window[base % WINDOW_SIZE].received = 0;
                 base++;
 
                 send_ack(sock, base - 1, &client_addr);
             }
+        } else {
+            printf("Packet %d outside window [%d, %d], discarding\n", 
+                   packet.seq_num, base, base + WINDOW_SIZE + BUFFER_ZONE - 1);
         }
     }
 
