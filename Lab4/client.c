@@ -14,8 +14,8 @@
 
 #define MAX_PACKET_SIZE 1500
 #define MAX_FILENAME_SIZE 256
-#define DEFAULT_WINDOW_SIZE 50
-#define DEFAULT_TIMEOUT 160.0
+#define DEFAULT_WINDOW_SIZE 15
+#define DEFAULT_TIMEOUT 40.0
 
 typedef struct {
     int seq_num;
@@ -142,10 +142,10 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
         }
 
         //only for testing
-        if (base == 400)
-        {
-            return;
-        }
+        // if (base == 400)
+        // {
+        //     return;
+        // }
         
     }
 
