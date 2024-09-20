@@ -140,6 +140,13 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
                 }
             }
         }
+
+        //only for testing
+        if (base == 400)
+        {
+            return;
+        }
+        
     }
 
     free(window);
