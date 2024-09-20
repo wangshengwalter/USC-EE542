@@ -6,21 +6,23 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 
-#define MAX_PACKET_SIZE 9000 // 1KB
+#define MAX_PACKET_SIZE 8500 // 1KB
 #define ACK_TIMEOUT 1 // 1 second timeout for ACK
+#define MAX_FILENAME_SIZE 256
 
 typedef struct {
     int seq_num;
     int is_last;
     int data_size;
-    char data[MAX_PACKET_SIZE - 3 * sizeof(int)];
+    char filename[MAX_FILENAME_SIZE];
+    char data[MAX_PACKET_SIZE - 3 * sizeof(int) - MAX_FILENAME_SIZE];
 } Packet;
 
-// New structure to hold transfer statistics
 typedef struct {
     struct timeval start_time;
     struct timeval end_time;
     size_t total_bytes;
+    char filename[MAX_FILENAME_SIZE];
 } TransferStats;
 
 int create_socket(const char* ip, int port) {
@@ -67,6 +69,7 @@ void calculate_bandwidth(TransferStats* stats) {
                       (stats->end_time.tv_usec - stats->start_time.tv_usec) / 1000000.0;
     double bandwidth = (stats->total_bytes * 8) / (duration * 1000000); // Mbps
 
+    printf("Transfer completed for file: %s\n", stats->filename);
     printf("Transfer completed in %.2f seconds\n", duration);
     printf("Total bytes transferred: %zu\n", stats->total_bytes);
     printf("Bandwidth: %.2f Mbps\n", bandwidth);
@@ -79,40 +82,50 @@ void run_server(const char* ip, int port) {
     FILE* file = NULL;
     int seq_num = 0;
     TransferStats stats = {0};
+    char current_filename[MAX_FILENAME_SIZE] = {0};
 
     printf("Server listening on %s:%d\n", ip, port);
 
     while (1) {
         if (receive_packet(sock, &packet, &client_addr) == 0) {
             if (seq_num == packet.seq_num) {
-                if (file == NULL) {
-                    char filename[256];
-                    snprintf(filename, sizeof(filename), "received_file_%d", seq_num);
-                    file = fopen(filename, "wb");
+                if (file == NULL || strcmp(current_filename, packet.filename) != 0) {
+                    if (file != NULL) {
+                        fclose(file);
+                        gettimeofday(&stats.end_time, NULL);
+                        calculate_bandwidth(&stats);
+                    }
+                    
+                    strncpy(current_filename, packet.filename, MAX_FILENAME_SIZE);
+                    file = fopen(current_filename, "wb");
                     if (file == NULL) {
                         perror("Failed to create file");
                         continue;
                     }
-                    printf("Creating new file: %s\n", filename);
-                    gettimeofday(&stats.start_time, NULL); // Record start time
+                    printf("Creating new file: %s\n", current_filename);
+                    gettimeofday(&stats.start_time, NULL);
                     stats.total_bytes = 0;
+                    strncpy(stats.filename, current_filename, MAX_FILENAME_SIZE);
+                    seq_num = 0;
                 }
 
                 fwrite(packet.data, 1, packet.data_size, file);
                 stats.total_bytes += packet.data_size;
-                printf("Received packet %d (%d bytes)\n", seq_num, packet.data_size);
+                printf("Received packet %d for file %s (%d bytes)\n", seq_num, current_filename, packet.data_size);
                 seq_num++;
 
                 if (packet.is_last) {
-                    gettimeofday(&stats.end_time, NULL); // Record end time
-                    printf("File transfer complete\n");
+                    gettimeofday(&stats.end_time, NULL);
+                    printf("File transfer complete: %s\n", current_filename);
                     fclose(file);
                     file = NULL;
                     calculate_bandwidth(&stats);
+                    memset(current_filename, 0, MAX_FILENAME_SIZE);
                     seq_num = 0;
                 }
             } else {
-                printf("Received out-of-order packet. Expected %d, got %d\n", seq_num, packet.seq_num);
+                printf("Received out-of-order packet for %s. Expected %d, got %d\n", 
+                       current_filename, seq_num, packet.seq_num);
             }
         }
     }

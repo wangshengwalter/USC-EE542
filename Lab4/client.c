@@ -1,4 +1,3 @@
-// client.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -6,16 +5,18 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <libgen.h>
 
-#define MAX_PACKET_SIZE 9000 
-#define ACK_TIMEOUT 1 // 10000 msecond timeout for ACK
-#define MAX_RETRIES 3
+#define MAX_PACKET_SIZE 8500 // 1KB
+#define ACK_TIMEOUT 1 // 1 second timeout for ACK
+#define MAX_FILENAME_SIZE 256
 
 typedef struct {
     int seq_num;
     int is_last;
     int data_size;
-    char data[MAX_PACKET_SIZE - 3 * sizeof(int)];
+    char filename[MAX_FILENAME_SIZE];
+    char data[MAX_PACKET_SIZE - 3 * sizeof(int) - MAX_FILENAME_SIZE];
 } Packet;
 
 int create_socket() {
@@ -27,42 +28,41 @@ int create_socket() {
     return sock;
 }
 
-int send_packet(int sock, Packet* packet, struct sockaddr_in* dest_addr) {
-    for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
-        if (sendto(sock, packet, sizeof(Packet), 0, (struct sockaddr*)dest_addr, sizeof(*dest_addr)) < 0) {
-            perror("sendto failed");
-            return -1;
-        }
-
-        // Wait for ACK
-        fd_set readfds;
-        struct timeval tv;
-        FD_ZERO(&readfds);
-        FD_SET(sock, &readfds);
-        tv.tv_sec = ACK_TIMEOUT;
-        tv.tv_usec = 0;
-
-        int ready = select(sock + 1, &readfds, NULL, NULL, &tv);
-        if (ready > 0) {
-            int ack;
-            struct sockaddr_in sender_addr;
-            socklen_t sender_len = sizeof(sender_addr);
-            if (recvfrom(sock, &ack, sizeof(ack), 0, (struct sockaddr*)&sender_addr, &sender_len) < 0) {
-                perror("recvfrom failed");
-                return -1;
-            }
-            if (ack == packet->seq_num) {
-                return 0;
-            }
-        }
-        printf("Timeout, retrying... (Attempt %d)\n", attempt + 1);
+void send_packet(int sock, const Packet* packet, const struct sockaddr_in* server_addr) {
+    if (sendto(sock, packet, sizeof(Packet), 0, (struct sockaddr*)server_addr, sizeof(*server_addr)) < 0) {
+        perror("sendto failed");
+        exit(EXIT_FAILURE);
     }
 
-    printf("Failed to send packet after multiple attempts\n");
-    return -1;
+    // Wait for ACK
+    fd_set readfds;
+    struct timeval tv;
+    FD_ZERO(&readfds);
+    FD_SET(sock, &readfds);
+    tv.tv_sec = ACK_TIMEOUT;
+    tv.tv_usec = 0;
+
+    int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
+    if (activity < 0) {
+        perror("select error");
+        exit(EXIT_FAILURE);
+    } else if (activity == 0) {
+        printf("Timeout waiting for ACK, resending packet %d\n", packet->seq_num);
+        send_packet(sock, packet, server_addr); // Recursively resend
+    } else {
+        int ack;
+        if (recv(sock, &ack, sizeof(ack), 0) < 0) {
+            perror("recv failed");
+            exit(EXIT_FAILURE);
+        }
+        if (ack != packet->seq_num) {
+            printf("Received wrong ACK, resending packet %d\n", packet->seq_num);
+            send_packet(sock, packet, server_addr); // Recursively resend
+        }
+    }
 }
 
-void run_client(const char* server_ip, int server_port, const char* filename) {
+void send_file(const char* filename, const char* server_ip, int server_port) {
     int sock = create_socket();
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
@@ -78,21 +78,18 @@ void run_client(const char* server_ip, int server_port, const char* filename) {
 
     Packet packet;
     int seq_num = 0;
-    int is_last = 0;
+    size_t bytes_read;
+    char* base_filename = basename((char*)filename); // Get filename without path
 
-    while (!is_last) {
-        packet.seq_num = seq_num;
-        packet.data_size = fread(packet.data, 1, sizeof(packet.data), file);
-        is_last = feof(file);
-        packet.is_last = is_last;
+    while ((bytes_read = fread(packet.data, 1, sizeof(packet.data), file)) > 0) {
+        packet.seq_num = seq_num++;
+        packet.is_last = feof(file) ? 1 : 0;
+        packet.data_size = bytes_read;
+        strncpy(packet.filename, base_filename, MAX_FILENAME_SIZE - 1);
+        packet.filename[MAX_FILENAME_SIZE - 1] = '\0'; // Ensure null-termination
 
-        if (send_packet(sock, &packet, &server_addr) == 0) {
-            printf("Sent packet %d (%d bytes)\n", seq_num, packet.data_size);
-            seq_num++;
-        } else {
-            printf("Failed to send packet %d\n", seq_num);
-            // Optionally, you might want to implement a retry mechanism here
-        }
+        send_packet(sock, &packet, &server_addr);
+        printf("Sent packet %d (%zu bytes)\n", packet.seq_num, bytes_read);
     }
 
     fclose(file);
@@ -102,15 +99,15 @@ void run_client(const char* server_ip, int server_port, const char* filename) {
 
 int main(int argc, char* argv[]) {
     if (argc != 4) {
-        fprintf(stderr, "Usage: %s <server_ip> <server_port> <filename>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <filename> <server_ip> <server_port>\n", argv[0]);
         exit(EXIT_FAILURE);
     }
 
-    const char* server_ip = argv[1];
-    int server_port = atoi(argv[2]);
-    const char* filename = argv[3];
+    const char* filename = argv[1];
+    const char* server_ip = argv[2];
+    int server_port = atoi(argv[3]);
 
-    run_client(server_ip, server_port, filename);
+    send_file(filename, server_ip, server_port);
 
     return 0;
 }
