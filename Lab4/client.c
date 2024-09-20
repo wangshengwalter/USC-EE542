@@ -7,8 +7,8 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 
-#define MAX_PACKET_SIZE 1024 
-#define ACK_TIMEOUT 1 // 1 second timeout for ACK
+#define MAX_PACKET_SIZE 1500 
+#define ACK_TIMEOUT 1000 // 1000 msecond timeout for ACK
 #define MAX_RETRIES 3
 
 typedef struct {
@@ -39,8 +39,8 @@ int send_packet(int sock, Packet* packet, struct sockaddr_in* dest_addr) {
         struct timeval tv;
         FD_ZERO(&readfds);
         FD_SET(sock, &readfds);
-        tv.tv_sec = ACK_TIMEOUT;
-        tv.tv_usec = 0;
+        tv.tv_sec = 0;
+        tv.tv_usec = ACK_TIMEOUT;
 
         int ready = select(sock + 1, &readfds, NULL, NULL, &tv);
         if (ready > 0) {
