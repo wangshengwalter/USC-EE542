@@ -117,8 +117,9 @@ void run_server(const char* ip, int port) {
                 printf("Processing packet %d, advancing base\n", base);
                 window[base % WINDOW_SIZE].received = 0;
                 base++;
-
+                if（base <= packet.seq_num <= base + WINDOW_SIZE - 1）{
                 send_ack(sock, base - 1, &client_addr);
+                }
             }
         } else {
             printf("Packet %d outside window [%d, %d], discarding\n", 
