@@ -79,6 +79,7 @@ void run_server(const char* ip, int port) {
             printf("Received packet %d for file %s (%d bytes)\n", packet.seq_num, packet.filename, packet.data_size);
 
             while (window[base % WINDOW_SIZE].received) {
+                //compare the filename of the current packet with the filename of the last packet
                 if (strcmp(current_filename, packet.filename) != 0) {
                     if (file != NULL) {
                         fclose(file);
@@ -94,7 +95,7 @@ void run_server(const char* ip, int port) {
 
                 fwrite(window[base % WINDOW_SIZE].packet.data, 1, window[base % WINDOW_SIZE].packet.data_size, file);
                 
-                if (window[base % WINDOW_SIZE].packet.is_last) {
+                if (window[base % WINDOW_SIZE].packet.is_last == 1) {
                     printf("File transfer complete: %s\n", current_filename);
                     fclose(file);
                     file = NULL;
