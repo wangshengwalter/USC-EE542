@@ -78,7 +78,7 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
 
     printf("Successfully opened file: %s\n", filename);
 
-    WindowSlot* window = malloc(window_size * sizeof(WindowSlot));
+    WindowSlot* window = (WindowSlot*)malloc(window_size * sizeof(WindowSlot));
     if (window == NULL) {
         perror("Failed to allocate memory for window");
         exit(EXIT_FAILURE);
