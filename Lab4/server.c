@@ -48,6 +48,7 @@ void send_ack(int sock, int ack, struct sockaddr_in* client_addr) {
     if (sendto(sock, &ack, sizeof(ack), 0, (struct sockaddr*)client_addr, sizeof(*client_addr)) < 0) {
         perror("sendto (ACK) failed");
     }
+    printf("Sent ACK %d\n", ack);
 }
 
 void run_server(const char* ip, int port) {
@@ -100,12 +101,13 @@ void run_server(const char* ip, int port) {
                     memset(current_filename, 0, MAX_FILENAME_SIZE);
                 }
 
+                printf("Cur base is %d\n", base);
                 window[base % WINDOW_SIZE].received = 0;
                 base++;
+
+                send_ack(sock, base - 1, &client_addr);
             }
         }
-
-        send_ack(sock, base - 1, &client_addr);
     }
 
     close(sock);
