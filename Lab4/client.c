@@ -8,7 +8,7 @@
 #include <libgen.h>
 #include <errno.h>
 
-#define MAX_PACKET_SIZE 8500
+#define MAX_PACKET_SIZE 1024
 #define MAX_FILENAME_SIZE 256
 #define DEFAULT_WINDOW_SIZE 10
 #define DEFAULT_TIMEOUT 1.0
@@ -78,7 +78,7 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
 
     printf("Successfully opened file: %s\n", filename);
 
-    WindowSlot* window = malloc(window_size * sizeof(WindowSlot));
+    WindowSlot* window = (WindowSlot*)malloc(window_size * sizeof(WindowSlot));
     if (window == NULL) {
         perror("Failed to allocate memory for window");
         exit(EXIT_FAILURE);
