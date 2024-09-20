@@ -8,10 +8,10 @@
 #include <libgen.h>
 #include <errno.h>
 
-#define MAX_PACKET_SIZE 8500
+#define MAX_PACKET_SIZE 1500
 #define MAX_FILENAME_SIZE 256
 #define DEFAULT_WINDOW_SIZE 50
-#define DEFAULT_TIMEOUT 1.0
+#define DEFAULT_TIMEOUT 40.0
 
 typedef struct {
     int seq_num;
@@ -113,8 +113,8 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
 
         // Receive ACKs
         struct timeval tv;
-        tv.tv_sec = (int)timeout;
-        tv.tv_usec = (timeout - (int)timeout) * 1000000;
+        tv.tv_sec = 0;
+        tv.tv_usec = timeout * 1000; // Convert ms to μs
 
         int ack;
         receive_ack(sock, &ack, &tv);
