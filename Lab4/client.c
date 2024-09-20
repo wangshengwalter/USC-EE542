@@ -6,9 +6,11 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <libgen.h>
+#include <errno.h>
 
-#define MAX_PACKET_SIZE 8500 // 1KB
-#define ACK_TIMEOUT 1 // 1 second timeout for ACK
+#define MAX_PACKET_SIZE 1024 // Changed to 1KB
+#define ACK_TIMEOUT_MS 40 // Changed to 40ms
+#define MAX_RETRIES 5 // Added max retries for packet loss
 #define MAX_FILENAME_SIZE 256
 
 typedef struct {
@@ -28,38 +30,45 @@ int create_socket() {
     return sock;
 }
 
-void send_packet(int sock, const Packet* packet, const struct sockaddr_in* server_addr) {
-    if (sendto(sock, packet, sizeof(Packet), 0, (struct sockaddr*)server_addr, sizeof(*server_addr)) < 0) {
-        perror("sendto failed");
-        exit(EXIT_FAILURE);
-    }
-
-    // Wait for ACK
-    fd_set readfds;
-    struct timeval tv;
-    FD_ZERO(&readfds);
-    FD_SET(sock, &readfds);
-    tv.tv_sec = ACK_TIMEOUT;
-    tv.tv_usec = 0;
-
-    int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
-    if (activity < 0) {
-        perror("select error");
-        exit(EXIT_FAILURE);
-    } else if (activity == 0) {
-        printf("Timeout waiting for ACK, resending packet %d\n", packet->seq_num);
-        send_packet(sock, packet, server_addr); // Recursively resend
-    } else {
-        int ack;
-        if (recv(sock, &ack, sizeof(ack), 0) < 0) {
-            perror("recv failed");
-            exit(EXIT_FAILURE);
+int send_packet(int sock, const Packet* packet, const struct sockaddr_in* server_addr) {
+    int retries = 0;
+    while (retries < MAX_RETRIES) {
+        if (sendto(sock, packet, sizeof(Packet), 0, (struct sockaddr*)server_addr, sizeof(*server_addr)) < 0) {
+            perror("sendto failed");
+            return -1;
         }
-        if (ack != packet->seq_num) {
-            printf("Received wrong ACK, resending packet %d\n", packet->seq_num);
-            send_packet(sock, packet, server_addr); // Recursively resend
+
+        // Wait for ACK
+        fd_set readfds;
+        struct timeval tv;
+        FD_ZERO(&readfds);
+        FD_SET(sock, &readfds);
+        tv.tv_sec = 0;
+        tv.tv_usec = ACK_TIMEOUT_MS * 1000; // Convert ms to μs
+
+        int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
+        if (activity < 0) {
+            if (errno == EINTR) continue; // Interrupted system call, try again
+            perror("select error");
+            return -1;
+        } else if (activity == 0) {
+            printf("Timeout waiting for ACK, retrying packet %d (attempt %d)\n", packet->seq_num, retries + 1);
+            retries++;
+        } else {
+            int ack;
+            if (recv(sock, &ack, sizeof(ack), 0) < 0) {
+                perror("recv failed");
+                return -1;
+            }
+            if (ack == packet->seq_num) {
+                return 0; // ACK received successfully
+            }
+            printf("Received wrong ACK, retrying packet %d (attempt %d)\n", packet->seq_num, retries + 1);
+            retries++;
         }
     }
+    printf("Max retries reached for packet %d, giving up\n", packet->seq_num);
+    return -1;
 }
 
 void send_file(const char* filename, const char* server_ip, int server_port) {
@@ -88,8 +97,12 @@ void send_file(const char* filename, const char* server_ip, int server_port) {
         strncpy(packet.filename, base_filename, MAX_FILENAME_SIZE - 1);
         packet.filename[MAX_FILENAME_SIZE - 1] = '\0'; // Ensure null-termination
 
-        send_packet(sock, &packet, &server_addr);
-        printf("Sent packet %d (%zu bytes)\n", packet.seq_num, bytes_read);
+        if (send_packet(sock, &packet, &server_addr) == 0) {
+            printf("Sent packet %d (%zu bytes)\n", packet.seq_num, bytes_read);
+        } else {
+            printf("Failed to send packet %d after max retries\n", packet.seq_num);
+            // You might want to implement additional error handling here
+        }
     }
 
     fclose(file);
