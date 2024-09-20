@@ -11,7 +11,7 @@
 #define MAX_PACKET_SIZE 1500 // Changed to 1KB
 #define ACK_TIMEOUT_MS 40 // Changed to 40ms
 #define MAX_RETRIES 5 // Added max retries for packet loss
-#define MAX_FILENAME_SIZE 256
+#define MAX_FILENAME_SIZE 20
 
 typedef struct {
     int seq_num;
