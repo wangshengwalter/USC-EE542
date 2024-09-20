@@ -8,8 +8,8 @@
 
 #define MAX_PACKET_SIZE 1500
 #define MAX_FILENAME_SIZE 256
-#define WINDOW_SIZE 25  // Increased from 20 to 25
-#define BUFFER_ZONE 5   // Additional buffer zone
+#define WINDOW_SIZE 25
+#define BUFFER_ZONE 5
 
 typedef struct {
     int seq_num;
@@ -52,6 +52,49 @@ void send_ack(int sock, int ack, struct sockaddr_in* client_addr) {
     printf("Sent ACK %d\n", ack);
 }
 
+void process_received_packet(Packet* packet, FILE* file) {
+    fwrite(packet->data, 1, packet->data_size, file);
+    if (packet->is_last) {
+        printf("File transfer complete: %s\n", packet->filename);
+        fclose(file);
+    }
+}
+
+void process_packet(int sock, Packet* packet, WindowSlot* window, int* base, FILE** file, struct sockaddr_in* client_addr) {
+    int index = packet->seq_num % WINDOW_SIZE;
+    
+    if (packet->seq_num >= *base && packet->seq_num < *base + WINDOW_SIZE + BUFFER_ZONE) {
+        window[index].packet = *packet;
+        window[index].received = 1;
+
+        printf("Accepted packet %d (base: %d, window: [%d, %d])\n", 
+               packet->seq_num, *base, *base, *base + WINDOW_SIZE - 1);
+
+        // Process packets in order, stopping at the first gap
+        while (window[*base % WINDOW_SIZE].received) {
+            if (*file == NULL) {
+                *file = fopen(packet->filename, "wb");
+                if (*file == NULL) {
+                    perror("Failed to create file");
+                    exit(EXIT_FAILURE);
+                }
+                printf("Creating new file: %s\n", packet->filename);
+            }
+
+            process_received_packet(&window[*base % WINDOW_SIZE].packet, *file);
+
+            window[*base % WINDOW_SIZE].received = 0;
+            (*base)++;
+        }
+
+        // Send cumulative ACK for the highest in-order packet received
+        send_ack(sock, *base - 1, client_addr);
+    } else {
+        printf("Packet %d outside window [%d, %d], discarding\n", 
+               packet->seq_num, *base, *base + WINDOW_SIZE + BUFFER_ZONE - 1);
+    }
+}
+
 void run_server(const char* ip, int port) {
     int sock = create_socket(ip, port);
     struct sockaddr_in client_addr;
@@ -59,7 +102,6 @@ void run_server(const char* ip, int port) {
     FILE* file = NULL;
     WindowSlot window[WINDOW_SIZE];
     int base = 0;
-    char current_filename[MAX_FILENAME_SIZE] = {0};
 
     // Initialize window
     for (int i = 0; i < WINDOW_SIZE; i++) {
@@ -79,52 +121,7 @@ void run_server(const char* ip, int port) {
 
         printf("Received packet %d for file %s (%d bytes)\n", packet.seq_num, packet.filename, packet.data_size);
 
-        // Accept packets within the window and the buffer zone
-        if (packet.seq_num >= base && packet.seq_num < base + WINDOW_SIZE + BUFFER_ZONE) {
-            int index = packet.seq_num % WINDOW_SIZE;
-            window[index].packet = packet;
-            window[index].received = 1;
-
-            printf("Accepted packet %d (base: %d, window: [%d, %d])\n", 
-                   packet.seq_num, base, base, base + WINDOW_SIZE - 1);
-
-            // Process packets in order, stopping at the first gap
-            while (window[base % WINDOW_SIZE].received) {
-                Packet* current_packet = &window[base % WINDOW_SIZE].packet;
-
-                if (strcmp(current_filename, current_packet->filename) != 0) {
-                    if (file != NULL) {
-                        fclose(file);
-                    }
-                    strncpy(current_filename, current_packet->filename, MAX_FILENAME_SIZE);
-                    file = fopen(current_filename, "wb");
-                    if (file == NULL) {
-                        perror("Failed to create file");
-                        exit(EXIT_FAILURE);
-                    }
-                    printf("Creating new file: %s\n", current_filename);
-                }
-
-                fwrite(current_packet->data, 1, current_packet->data_size, file);
-                
-                if (current_packet->is_last == 1) {
-                    printf("File transfer complete: %s\n", current_filename);
-                    fclose(file);
-                    file = NULL;
-                    memset(current_filename, 0, MAX_FILENAME_SIZE);
-                }
-
-                printf("Processing packet %d, advancing base\n", base);
-                window[base % WINDOW_SIZE].received = 0;
-                base++;
-                if (base <= packet.seq_num <= base + WINDOW_SIZE - 1){
-                send_ack(sock, base - 1, &client_addr);
-                }
-            }
-        } else {
-            printf("Packet %d outside window [%d, %d], discarding\n", 
-                   packet.seq_num, base, base + WINDOW_SIZE + BUFFER_ZONE - 1);
-        }
+        process_packet(sock, &packet, window, &base, &file, &client_addr);
     }
 
     close(sock);
