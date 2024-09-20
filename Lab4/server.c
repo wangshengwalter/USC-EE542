@@ -8,7 +8,7 @@
 
 #define MAX_PACKET_SIZE 1500
 #define MAX_FILENAME_SIZE 256
-#define WINDOW_SIZE 50
+#define WINDOW_SIZE 20
 
 typedef struct {
     int seq_num;
@@ -71,6 +71,7 @@ void run_server(const char* ip, int port) {
             continue;
         }
 
+        printf("Received\n");
         if (packet.seq_num >= base && packet.seq_num < base + WINDOW_SIZE) {
             int index = packet.seq_num % WINDOW_SIZE;
             window[index].packet = packet;

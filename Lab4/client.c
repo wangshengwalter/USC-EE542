@@ -14,7 +14,7 @@
 
 #define MAX_PACKET_SIZE 1500
 #define MAX_FILENAME_SIZE 256
-#define DEFAULT_WINDOW_SIZE 15
+#define DEFAULT_WINDOW_SIZE 20
 #define DEFAULT_TIMEOUT 40.0
 
 typedef struct {
