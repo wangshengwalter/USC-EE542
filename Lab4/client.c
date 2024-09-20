@@ -119,6 +119,8 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
         int ack;
         receive_ack(sock, &ack, &tv);
 
+        printf("Received ACK: %d\n", ack);
+
         if (ack >= base && ack < next_seq_num) {
             window[ack % window_size].acked = 1;
             while (window[base % window_size].acked) {
