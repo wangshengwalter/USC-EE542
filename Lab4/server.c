@@ -61,6 +61,11 @@ void run_server(const char* ip, int port) {
     int base = 0;
     char current_filename[MAX_FILENAME_SIZE] = {0};
 
+    // Initialize window
+    for (int i = 0; i < WINDOW_SIZE; i++) {
+        window[i].received = 0;
+    }
+
     printf("Server listening on %s:%d\n", ip, port);
 
     while (1) {
@@ -83,12 +88,15 @@ void run_server(const char* ip, int port) {
             printf("Accepted packet %d (base: %d, window: [%d, %d])\n", 
                    packet.seq_num, base, base, base + WINDOW_SIZE - 1);
 
+            // Process packets in order, stopping at the first gap
             while (window[base % WINDOW_SIZE].received) {
-                if (strcmp(current_filename, packet.filename) != 0) {
+                Packet* current_packet = &window[base % WINDOW_SIZE].packet;
+
+                if (strcmp(current_filename, current_packet->filename) != 0) {
                     if (file != NULL) {
                         fclose(file);
                     }
-                    strncpy(current_filename, packet.filename, MAX_FILENAME_SIZE);
+                    strncpy(current_filename, current_packet->filename, MAX_FILENAME_SIZE);
                     file = fopen(current_filename, "wb");
                     if (file == NULL) {
                         perror("Failed to create file");
@@ -97,9 +105,9 @@ void run_server(const char* ip, int port) {
                     printf("Creating new file: %s\n", current_filename);
                 }
 
-                fwrite(window[base % WINDOW_SIZE].packet.data, 1, window[base % WINDOW_SIZE].packet.data_size, file);
+                fwrite(current_packet->data, 1, current_packet->data_size, file);
                 
-                if (window[base % WINDOW_SIZE].packet.is_last == 1) {
+                if (current_packet->is_last == 1) {
                     printf("File transfer complete: %s\n", current_filename);
                     fclose(file);
                     file = NULL;
