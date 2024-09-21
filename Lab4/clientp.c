@@ -14,7 +14,7 @@
 
 #define MAX_PACKET_SIZE 1500
 #define MAX_FILENAME_SIZE 256
-#define DEFAULT_WINDOW_SIZE 25
+#define DEFAULT_WINDOW_SIZE 20
 #define DEFAULT_TIMEOUT 40.0
 
 typedef struct {
@@ -164,11 +164,15 @@ void send_file(const char* filename, const char* server_ip, int server_port, flo
 
     char* base_filename = basename((char*)filename);
     
+    printf("creating threads\n");
     std::thread sendthread = std::thread(send_thread, base_filename, sock, &server_addr);
     std::thread recvthread = std::thread(receive_thread, sock, timeout);
+    sendthread.start();
+    recvthread.start();
 
     sendthread.join();
     recvthread.join();
+    printf("threads complete\n");
 }
 
 
