@@ -101,7 +101,7 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
     }
     printf("Successfully opened file: %s\n", filename);
 
-    while (base < next_seq_num || !file_finished) {
+    while (!file_finished) {
         while (next_seq_num < base + window_size && !file_finished) {
             std::lock_guard<std::mutex> lock(window[next_seq_num % window_size].lock);
 
