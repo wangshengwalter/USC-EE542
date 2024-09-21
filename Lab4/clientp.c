@@ -101,8 +101,10 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
     printf("Successfully opened file: %s\n");
 
     while (base < next_seq_num || !file_finished) {
-
+        printf("test1\n");
         while (next_seq_num < base + window_size && !file_finished) {
+
+            printf("test2\n");
 
             Packet* packet = &window[next_seq_num % window_size].packet;
             packet->seq_num = next_seq_num;
@@ -121,14 +123,13 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
                 file_finished = 1;
             }
         }
-
-
     }
-
 }
 
 void receive_thread(int sock, float timeout) {
     while (base < next_seq_num || !file_finished) {
+
+        printf("test3\n");
         struct timeval tv;
         tv.tv_sec = 0;
         tv.tv_usec = timeout * 1000; // Convert ms to μs
@@ -167,6 +168,8 @@ void send_file(const char* filename, const char* server_ip, int server_port, flo
     printf("creating threads\n");
     std::thread sendthread(send_thread, base_filename, sock, &server_addr);
     std::thread recvthread(receive_thread, sock, timeout);
+
+    printf("threads started\n");
 
     sendthread.join();
     recvthread.join();
