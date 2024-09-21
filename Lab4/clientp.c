@@ -126,7 +126,7 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
 }
 
 
-void receive_thread(int sock, float timeout) {
+void receive_thread(int sock, float timeout, struct sockaddr_in* server_addr) {
     while (base < next_seq_num || !file_finished) {
         printf("test3\n");
         struct timeval tv;
@@ -139,7 +139,7 @@ void receive_thread(int sock, float timeout) {
         if (ack >= base && ack < next_seq_num) {
             printf("Received ACK %d\n", ack);
             int index = ack % window_size;
-            std::lock_guard<std::mutex> lock(&window[index].lock);
+            std::lock_guard<std::mutex> lock(window[index].lock);
             window[index].acked = 1;
             while (base < next_seq_num && window[base % window_size].acked) {
                 printf("Received ACK %d, advancing base\n", base);
@@ -150,7 +150,7 @@ void receive_thread(int sock, float timeout) {
             printf("Timeout occurred. Resending unacked packets...\n");
             for (int i = base; i < next_seq_num; i++) {
                 int index = i % window_size;
-                std::lock_guard<std::mutex> lock(&window[index].lock);
+                std::lock_guard<std::mutex> lock(window[index].lock);
                 if (!window[index].acked) {
                     Packet* packet = &window[index].packet;
                     send_packet(sock, packet, server_addr);
@@ -199,11 +199,11 @@ void send_file(const char* filename, const char* server_ip, int server_port, flo
     printf("creating threads\n");
     std::thread sendthread(send_thread, base_filename, sock, &server_addr);
     printf("created send thread\n");
-    // std::thread recvthread(receive_thread, sock, timeout);
+    std::thread recvthread(receive_thread, sock, timeout, &server_addr);
     printf("threads started\n");
 
     sendthread.join();
-    // recvthread.join();
+    recvthread.join();
     printf("threads complete\n");
 }
 
