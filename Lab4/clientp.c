@@ -135,7 +135,7 @@ void receive_thread(int sock, float timeout, struct sockaddr_in* server_addr) {
         tv.tv_usec = timeout * 1000; // Convert ms to μs
 
         int ack = receive_ack(sock, &tv);
-        if (ack >= base && ack < next_seq_num) {
+        if (ack >= base) {
             printf("Received ACK %d\n", ack);
             int index = ack % window_size;
             std::lock_guard<std::mutex> lock(window[index].lock);
