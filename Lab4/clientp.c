@@ -95,10 +95,10 @@ void nextseq_increment() {
 void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr) {
     FILE* file = fopen(filename, "rb");
     if (file == NULL) {
-        fprintf(stderr, "Failed to open file '%s': %s\n", filename, strerror(errno));
+        printf(stderr, "Failed to open file '%s': %s\n", filename, strerror(errno));
         exit(EXIT_FAILURE);
     }
-    printf("Successfully opened file: %s\n");
+    printf("Successfully opened file: %s\n", filename);
 
     while (base < next_seq_num || !file_finished) {
         while (next_seq_num < base + window_size && !file_finished) {
@@ -122,28 +122,28 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
     }
 }
 
-void receive_thread(int sock, float timeout) {
-    while (base < next_seq_num || !file_finished) {
-        printf("test3\n");
-        struct timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = timeout * 1000; // Convert ms to μs
+// void receive_thread(int sock, float timeout) {
+//     while (base < next_seq_num || !file_finished) {
+//         printf("test3\n");
+//         struct timeval tv;
+//         tv.tv_sec = 0;
+//         tv.tv_usec = timeout * 1000; // Convert ms to μs
 
-        printf("test4\n");
+//         printf("test4\n");
 
-        int ack = receive_ack(sock, &tv);
-        if (ack >= base && ack < next_seq_num) {
-            printf("Received ACK %d\n", ack);
-            int index = ack % window_size;
-            window[index].acked = 1;
-            while (base < next_seq_num && window[base % window_size].acked) {
-                printf("Received ACK %d, advancing base\n", base);
+//         int ack = receive_ack(sock, &tv);
+//         if (ack >= base && ack < next_seq_num) {
+//             printf("Received ACK %d\n", ack);
+//             int index = ack % window_size;
+//             window[index].acked = 1;
+//             while (base < next_seq_num && window[base % window_size].acked) {
+//                 printf("Received ACK %d, advancing base\n", base);
                 
-                nextseq_increment();
-            }
-        }
-    }
-}
+//                 nextseq_increment();
+//             }
+//         }
+//     }
+// }
 
 
 
