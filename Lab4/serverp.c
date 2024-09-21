@@ -8,7 +8,7 @@
 
 #define MAX_PACKET_SIZE 8500
 #define MAX_FILENAME_SIZE 50
-#define WINDOW_SIZE 294
+#define WINDOW_SIZE 5
 #define BUFFER_ZONE 5
 
 typedef struct {
@@ -53,7 +53,7 @@ void send_ack(int sock, int ack, struct sockaddr_in* client_addr) {
 }
 
 void run_server(const char* ip, int port) {
-    int sock = create_socket(ip, port);
+    int sock = create_socket(ip, port); 
     struct sockaddr_in client_addr;
     Packet packet;
     FILE* file = NULL;
