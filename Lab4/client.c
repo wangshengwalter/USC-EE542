@@ -9,11 +9,16 @@
 #include <errno.h>
 #include <iostream>
 #include <chrono>
+#include <math.h>
 
 #define MAX_PACKET_SIZE 8500
 #define MAX_FILENAME_SIZE 50
 #define DEFAULT_WINDOW_SIZE 25
 #define DEFAULT_TIMEOUT 300.0
+
+#define ALPHA 0.125
+#define BETA 0.25
+#define K 4
 
 typedef struct {
     int seq_num;
@@ -46,7 +51,32 @@ void send_packet(int sock, const Packet* packet, const struct sockaddr_in* serve
     printf("Sent packet %d (%d bytes)\n", packet->seq_num, packet->data_size);
 }
 
-int receive_ack(int sock, struct timeval* timeout) {
+double estimated_rtt = 1.0;
+double dev_rtt = 0.0;
+
+double calculate_timeout(struct timeval* send_time, struct timeval* ack_time) {
+    struct timeval diff;
+    timersub(ack_time, send_time, &diff);
+    double sample_rtt = diff.tv_sec + diff.tv_usec / 1000000.0;
+
+    estimated_rtt = (1 - ALPHA) * estimated_rtt + ALPHA * sample_rtt;
+    dev_rtt = (1 - BETA) * dev_rtt + BETA * fabs(sample_rtt - estimated_rtt);
+
+    return estimated_rtt + K * dev_rtt;
+}
+
+void update_window(WindowSlot* window, int window_size, int ack, int* base, int next_seq_num) {
+    for (int i = *base; i <= ack; i++) {
+        window[i % window_size].acked = 1;
+    }
+    // Move the base of the window
+    while (*base < next_seq_num && window[*base % window_size].acked) {
+        (*base)++;
+    }
+    printf("Updated window base to: %d\n", *base);
+}
+
+void receive_ack(int sock, int* ack, struct timeval* timeout, WindowSlot* window, int window_size, int* base, int next_seq_num) {
     fd_set readfds;
     FD_ZERO(&readfds);
     FD_SET(sock, &readfds);
@@ -56,18 +86,18 @@ int receive_ack(int sock, struct timeval* timeout) {
         perror("select error");
         exit(EXIT_FAILURE);
     } else if (activity == 0) {
-        return -1;  // Timeout
+        *ack = -1;  // Timeout
     } else {
-        int ack;
-        if (recv(sock, &ack, sizeof(ack), 0) < 0) {
+        if (recv(sock, ack, sizeof(*ack), 0) < 0) {
             perror("recv failed");
             exit(EXIT_FAILURE);
         }
-        return ack;
+        // Update the window based on the received ACK
+        update_window(window, window_size, *ack, base, next_seq_num);
     }
 }
 
-void send_file(const char* filename, const char* server_ip, int server_port, int window_size, float timeout) {
+void send_file(const char* filename, const char* server_ip, int server_port, int window_size, float initial_timeout) {
     int sock = create_socket();
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
@@ -93,6 +123,7 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
     int next_seq_num = 0;
     char* base_filename = basename((char*)filename);
     int file_finished = 0;
+    double current_timeout = initial_timeout;
 
     while (base < next_seq_num || !file_finished) {
         // Fill window
@@ -108,75 +139,4 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
             gettimeofday(&window[next_seq_num % window_size].send_time, NULL);
             window[next_seq_num % window_size].acked = 0;
 
-            next_seq_num++;
-            if (packet->is_last) {
-                file_finished = 1;
-            }
-        }
-
-        // Receive ACKs
-        struct timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = timeout * 1000; // Convert ms to μs
-
-        int ack = receive_ack(sock, &tv);
-
-        if (ack >= base && ack < next_seq_num) {
-            printf("Received ACK: %d (base: %d, next_seq_num: %d)\n", ack, base, next_seq_num);
-            window[ack % window_size].acked = 1;
-            while (base < next_seq_num && window[base % window_size].acked) {
-                base++;
-            }
-            printf("Advanced base to: %d\n", base);
-        } else if (ack == -1) {  // Timeout
-            printf("Timeout occurred. Resending unacked packets...\n");
-            for (int i = base; i < next_seq_num; i++) {
-                if (!window[i % window_size].acked) {
-                    send_packet(sock, &window[i % window_size].packet, &server_addr);
-                    gettimeofday(&window[i % window_size].send_time, NULL);
-                    printf("Resent packet %d\n", i);
-                }
-            }
-        } else {
-            printf("Received unexpected ACK: %d (base: %d, next_seq_num: %d)\n", ack, base, next_seq_num);
-        }
-    }
-
-    free(window);
-    fclose(file);
-    close(sock);
-    printf("File transfer complete\n");
-}
-
-int main(int argc, char* argv[]) {
-    if (argc != 4 && argc != 6) {
-        fprintf(stderr, "Usage: %s <filename> <server_ip> <server_port> [window_size] [timeout]\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
-
-    const char* filename = argv[1];
-    const char* server_ip = argv[2];
-    int server_port = atoi(argv[3]);
-    int window_size = DEFAULT_WINDOW_SIZE;
-    float timeout = DEFAULT_TIMEOUT;
-
-    if (argc == 6) {
-        window_size = atoi(argv[4]);
-        timeout = atof(argv[5]);
-        if (window_size <= 0 || timeout <= 0) {
-            fprintf(stderr, "Invalid window size or timeout. Using defaults.\n");
-            window_size = DEFAULT_WINDOW_SIZE;
-            timeout = DEFAULT_TIMEOUT;
-        }
-    }
-
-    auto start = std::chrono::high_resolution_clock::now();
-
-    send_file(filename, server_ip, server_port, window_size, timeout);
-
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = end - start;
-    std::cout << "Elapsed time: " << elapsed.count() << " s\n";
-
-    return 0;
-}
+            next_seq_num
