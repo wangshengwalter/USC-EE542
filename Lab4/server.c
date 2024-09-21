@@ -6,8 +6,8 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 
-#define MAX_PACKET_SIZE 1500
-#define MAX_FILENAME_SIZE 256
+#define MAX_PACKET_SIZE 8500
+#define MAX_FILENAME_SIZE 50
 #define WINDOW_SIZE 25
 #define BUFFER_ZONE 5
 
