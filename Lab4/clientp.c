@@ -69,6 +69,8 @@ int receive_ack(int sock, struct timeval* timeout) {
     }
 }
 
+int window_size = 0;
+
 WindowSlot* window = nullptr;
 int base = 0;
 std::mutex base_lock;
@@ -89,7 +91,7 @@ void nextseq_increment() {
 
 
 
-void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr, int window_size) {
+void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr) {
     FILE* file = fopen(filename, "rb");
     if (file == NULL) {
         fprintf(stderr, "Failed to open file '%s': %s\n", filename, strerror(errno));
@@ -144,7 +146,7 @@ void receive_thread(int sock, float timeout) {
 }
 
 
-void send_file(const char* filename, const char* server_ip, int server_port, int window_size, float timeout) {
+void send_file(const char* filename, const char* server_ip, int server_port, float timeout) {
     
     int sock = create_socket();
     struct sockaddr_in server_addr;
@@ -157,7 +159,7 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
 
     char* base_filename = basename((char*)filename);
     
-    std::thread sendthread = std::thread(send_thread, base_filename, sock, &server_addr, window_size);
+    std::thread sendthread = std::thread(send_thread, base_filename, sock, &server_addr);
     std::thread recvthread = std::thread(receive_thread, sock, timeout);
 
     send_thread.join();
@@ -174,7 +176,7 @@ int main(int argc, char* argv[]) {
     const char* filename = argv[1];
     const char* server_ip = argv[2];
     int server_port = atoi(argv[3]);
-    int window_size = DEFAULT_WINDOW_SIZE;
+    window_size = DEFAULT_WINDOW_SIZE;
     float timeout = DEFAULT_TIMEOUT;
 
     if (argc == 6) {
