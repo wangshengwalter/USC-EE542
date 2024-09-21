@@ -2,7 +2,7 @@
 
 git pull
 
-gcc -o serverp serverp.c
+g++ -o serverp serverp.c
 
 ./serverp 10.0.2.157 4000
 
