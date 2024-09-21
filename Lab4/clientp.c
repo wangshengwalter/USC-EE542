@@ -111,7 +111,7 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
             strncpy(packet->filename, filename, MAX_FILENAME_SIZE - 1);
             packet->filename[MAX_FILENAME_SIZE - 1] = '\0';
 
-            send_packet(sock, packet, &server_addr);
+            send_packet(sock, packet, server_addr);
             gettimeofday(&window[next_seq_num % window_size].send_time, NULL);
             window[next_seq_num % window_size].acked = 0;
 
