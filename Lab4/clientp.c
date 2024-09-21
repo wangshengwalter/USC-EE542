@@ -29,6 +29,7 @@ typedef struct {
     Packet packet;
     int acked;
     struct timeval send_time;
+    std::mutex lock;
 } WindowSlot;
 
 int create_socket() {
@@ -102,6 +103,8 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
 
     while (base < next_seq_num || !file_finished) {
         while (next_seq_num < base + window_size && !file_finished) {
+            std::lock_guard<std::mutex> lock(&window[next_seq_num % window_size].lock);
+
             Packet* packet = &window[next_seq_num % window_size].packet;
             packet->seq_num = next_seq_num;
             packet->data_size = fread(packet->data, 1, sizeof(packet->data), file);
@@ -122,28 +125,43 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
     }
 }
 
-// void receive_thread(int sock, float timeout) {
-//     while (base < next_seq_num || !file_finished) {
-//         printf("test3\n");
-//         struct timeval tv;
-//         tv.tv_sec = 0;
-//         tv.tv_usec = timeout * 1000; // Convert ms to μs
 
-//         printf("test4\n");
+void receive_thread(int sock, float timeout) {
+    while (base < next_seq_num || !file_finished) {
+        printf("test3\n");
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = timeout * 1000; // Convert ms to μs
 
-//         int ack = receive_ack(sock, &tv);
-//         if (ack >= base && ack < next_seq_num) {
-//             printf("Received ACK %d\n", ack);
-//             int index = ack % window_size;
-//             window[index].acked = 1;
-//             while (base < next_seq_num && window[base % window_size].acked) {
-//                 printf("Received ACK %d, advancing base\n", base);
-                
-//                 nextseq_increment();
-//             }
-//         }
-//     }
-// }
+        printf("test4\n");
+
+        int ack = receive_ack(sock, &tv);
+        if (ack >= base && ack < next_seq_num) {
+            printf("Received ACK %d\n", ack);
+            int index = ack % window_size;
+            std::lock_guard<std::mutex> lock(&window[index].lock);
+            window[index].acked = 1;
+            while (base < next_seq_num && window[base % window_size].acked) {
+                printf("Received ACK %d, advancing base\n", base);
+                base_increment();
+            }
+        }
+        else if (ack == -1) {
+            printf("Timeout occurred. Resending unacked packets...\n");
+            for (int i = base; i < next_seq_num; i++) {
+                int index = i % window_size;
+                std::lock_guard<std::mutex> lock(&window[index].lock);
+                if (!window[index].acked) {
+                    Packet* packet = &window[index].packet;
+                    send_packet(sock, packet, server_addr);
+                    gettimeofday(&window[index].send_time, NULL);
+                }
+            }
+        } else {
+            printf("Received ACK %d outside window [%d, %d], discarding\n", ack, base, next_seq_num);
+        }
+    }
+}
 
 
 
