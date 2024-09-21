@@ -105,7 +105,9 @@ public:
         }
 
         std::thread send_thread(&UDPSender::sendThread, this);
+        printf("send_thread\n");
         std::thread ack_thread(&UDPSender::ackThread, this);
+        printf("ack_thread\n");
 
         Packet packet;
 
@@ -116,6 +118,10 @@ public:
             packet.is_last = file.eof();
             strncpy(packet.filename, filename.c_str(), MAX_FILENAME_SIZE);
             window.addPacket(packet);
+
+            if(file.eof()) {
+                break;
+            }
         }
 
         window.setFinished();
