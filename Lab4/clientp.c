@@ -93,9 +93,6 @@ void nextseq_increment() {
 }
 
 void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr) {
-
-    printf("here1\n");
-
     FILE* file = fopen(filename, "rb");
     if (file == NULL) {
         fprintf(stderr, "Failed to open file '%s': %s\n", filename, strerror(errno));
@@ -130,13 +127,13 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
 }
 
 void receive_thread(int sock, float timeout) {
-    printf("here2\n");
-
     while (base < next_seq_num || !file_finished) {
         printf("test3\n");
         struct timeval tv;
         tv.tv_sec = 0;
         tv.tv_usec = timeout * 1000; // Convert ms to μs
+
+        printf("test4\n");
 
         int ack = receive_ack(sock, &tv);
         if (ack >= base && ack < next_seq_num) {
@@ -172,11 +169,11 @@ void send_file(const char* filename, const char* server_ip, int server_port, flo
     printf("creating threads\n");
     std::thread sendthread(send_thread, base_filename, sock, &server_addr);
     printf("created send thread\n");
-    std::thread recvthread(receive_thread, sock, timeout);
+    // std::thread recvthread(receive_thread, sock, timeout);
     printf("threads started\n");
 
     sendthread.join();
-    recvthread.join();
+    // recvthread.join();
     printf("threads complete\n");
 }
 
