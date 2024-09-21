@@ -92,8 +92,6 @@ void nextseq_increment() {
     next_seq_num++;
 }
 
-
-
 void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr) {
     FILE* file = fopen(filename, "rb");
     if (file == NULL) {
@@ -128,6 +126,7 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
     }
 
 }
+
 void receive_thread(int sock, float timeout) {
     while (base < next_seq_num || !file_finished) {
         struct timeval tv;
@@ -147,6 +146,9 @@ void receive_thread(int sock, float timeout) {
         }
     }
 }
+
+
+
 
 
 void send_file(const char* filename, const char* server_ip, int server_port, float timeout) {
