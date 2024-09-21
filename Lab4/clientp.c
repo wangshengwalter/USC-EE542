@@ -128,12 +128,10 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
 
 void receive_thread(int sock, float timeout, struct sockaddr_in* server_addr) {
     while (base < next_seq_num || !file_finished) {
-        printf("test3\n");
+        
         struct timeval tv;
         tv.tv_sec = 0;
         tv.tv_usec = timeout * 1000; // Convert ms to μs
-
-        printf("test4\n");
 
         int ack = receive_ack(sock, &tv);
         if (ack >= base && ack < next_seq_num) {
