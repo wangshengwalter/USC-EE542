@@ -156,6 +156,11 @@ void receive_thread(int sock, float timeout) {
 void send_file(const char* filename, const char* server_ip, int server_port, float timeout) {
     
     int sock = create_socket();
+    if (sock < 0) {
+        perror("Failed to create socket");
+        return;
+    }
+
     struct sockaddr_in server_addr;
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
@@ -163,8 +168,19 @@ void send_file(const char* filename, const char* server_ip, int server_port, flo
     server_addr.sin_port = htons(server_port);
 
     window = (WindowSlot*)malloc(window_size * sizeof(WindowSlot));
+    if (window == NULL) {
+        perror("Failed to allocate memory for window");
+        return;
+    }
 
     char* base_filename = basename((char*)filename);
+    if (base_filename == NULL)
+    {
+        perror("Failed to get base filename");
+        free(window);
+        return;
+    }
+    
     
     printf("creating threads\n");
     std::thread sendthread(send_thread, base_filename, sock, &server_addr);
