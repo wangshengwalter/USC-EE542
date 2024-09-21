@@ -87,11 +87,21 @@ void base_increment() {
     std::lock_guard<std::mutex> lock(base_lock);
     base++;
 }
+int get_base() {
+    std::lock_guard<std::mutex> lock(base_lock);
+    return base;
+}
 
 void nextseq_increment() {
     std::lock_guard<std::mutex> lock(nextseq_lock);
     next_seq_num++;
 }
+int get_nextseq() {
+    std::lock_guard<std::mutex> lock(nextseq_lock);
+    return next_seq_num;
+}
+
+
 
 void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr) {
     FILE* file = fopen(filename, "rb");
@@ -102,19 +112,19 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
     printf("Successfully opened file: %s\n", filename);
 
     while (!file_finished) {
-        while (next_seq_num < base + window_size && !file_finished) {
-            std::lock_guard<std::mutex> lock(window[next_seq_num % window_size].lock);
+        while (get_nextseq() < get_base() + window_size && !file_finished) {
+            std::lock_guard<std::mutex> lock(window[get_nextseq() % window_size].lock);
 
-            Packet* packet = &window[next_seq_num % window_size].packet;
-            packet->seq_num = next_seq_num;
+            Packet* packet = &window[get_nextseq() % window_size].packet;
+            packet->seq_num = get_nextseq();
             packet->data_size = fread(packet->data, 1, sizeof(packet->data), file);
             packet->is_last = feof(file);
             strncpy(packet->filename, basename((char*)filename), MAX_FILENAME_SIZE - 1);
             packet->filename[MAX_FILENAME_SIZE - 1] = '\0';
 
             send_packet(sock, packet, server_addr);
-            gettimeofday(&window[next_seq_num % window_size].send_time, NULL);
-            window[next_seq_num % window_size].acked = 0;
+            gettimeofday(&window[get_nextseq() % window_size].send_time, NULL);
+            window[get_nextseq() % window_size].acked = 0;
 
             nextseq_increment();
             if (packet->is_last) {
@@ -128,29 +138,29 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
 
 
 void receive_thread(int sock, float timeout, struct sockaddr_in* server_addr) {
-    while (base < next_seq_num || !file_finished) {
+    while (get_base() < get_nextseq() || !file_finished) {
 
         struct timeval tv;
         tv.tv_sec = 0;
         tv.tv_usec = timeout * 1000; // Convert ms to μs
 
         int ack = receive_ack(sock, &tv);
-        if (ack >= base) {
+        if (ack >= get_base() && ack < get_nextseq()) {
             int index = ack % window_size;
-            printf("Received ACK %d  window[%d, %d] with index %d\n", ack, base, next_seq_num, index);
-            for (int i = base; i <= ack; i++){
+            printf("Received ACK %d  window[%d, %d] with index %d\n", ack, get_base(), get_nextseq(), index);
+            for (int i = get_base(); i <= ack; i++){
                 std::lock_guard<std::mutex> lock(window[i % window_size].lock);
                 window[i % window_size].acked = 1;
             }
             
-            while (base < next_seq_num && window[base % window_size].acked) {
-                printf("Received ACK %d, advancing base\n", base);
+            while (get_base() < get_nextseq() && window[get_base() % window_size].acked) {
+                printf("Received ACK %d, advancing base\n", get_base());
                 base_increment();
             }
         }
         else if (ack == -1) {
             printf("Timeout occurred. Resending unacked packets...\n");
-            for (int i = base; i < next_seq_num; i++) {
+            for (int i = get_base(); i < get_nextseq(); i++) {
                 int index = i % window_size;
                 std::lock_guard<std::mutex> lock(window[index].lock);
                 if (!window[index].acked) {
@@ -163,7 +173,7 @@ void receive_thread(int sock, float timeout, struct sockaddr_in* server_addr) {
             printf("Completed file transfer\n");
             break;
         } else {
-            printf("Received ACK %d outside window [%d, %d], discarding\n", ack, base, next_seq_num);
+            printf("Received ACK %d outside window [%d, %d], discarding\n", ack, get_base(), get_nextseq());
         }
     }
 }
