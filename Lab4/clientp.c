@@ -138,9 +138,8 @@ void receive_thread(int sock, float timeout, struct sockaddr_in* server_addr) {
         if (ack >= base) {
             int index = ack % window_size;
             printf("Received ACK %d  window[%d, %d] with index %d\n", ack, base, next_seq_num, index);
-            std::lock_guard<std::mutex> lock(window[index].lock);
-            
             for (int i = base; i <= ack; i++){
+                std::lock_guard<std::mutex> lock(window[i % window_size].lock);
                 window[i % window_size].acked = 1;
             }
             
