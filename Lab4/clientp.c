@@ -120,6 +120,7 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
             if (packet->is_last) {
                 std::lock_guard<std::mutex> lock(end_lock);
                 file_finished = 1;
+                break;
             }
         }
     }

@@ -115,7 +115,6 @@ void run_server(const char* ip, int port) {
 
                     // Send ACK for last packet
                     send_ack(sock, -2, &client_addr);
-                    break;
                 } 
 
                 printf("Processing packet %d, advancing base\n", base);
