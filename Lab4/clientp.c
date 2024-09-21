@@ -103,7 +103,7 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
 
     while (base < next_seq_num || !file_finished) {
         while (next_seq_num < base + window_size && !file_finished) {
-            std::lock_guard<std::mutex> lock(&window[next_seq_num % window_size].lock);
+            std::lock_guard<std::mutex> lock(window[next_seq_num % window_size].lock);
 
             Packet* packet = &window[next_seq_num % window_size].packet;
             packet->seq_num = next_seq_num;
