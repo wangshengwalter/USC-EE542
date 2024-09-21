@@ -72,10 +72,13 @@ int receive_ack(int sock, struct timeval* timeout) {
 int window_size = 0;
 
 WindowSlot* window = nullptr;
+
 int base = 0;
 std::mutex base_lock;
+
 int next_seq_num = 0;
 std::mutex nextseq_lock;
+
 int file_finished = 0;
 std::mutex end_lock;
 
@@ -162,8 +165,8 @@ void send_file(const char* filename, const char* server_ip, int server_port, flo
     std::thread sendthread = std::thread(send_thread, base_filename, sock, &server_addr);
     std::thread recvthread = std::thread(receive_thread, sock, timeout);
 
-    send_thread.join();
-    receive_thread.join();
+    sendthread.join();
+    recvthread.join();
 }
 
 
