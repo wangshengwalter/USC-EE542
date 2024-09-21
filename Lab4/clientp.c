@@ -89,7 +89,7 @@ void nextseq_increment() {
 
 
 
-void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr) {
+void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr, int window_size) {
     FILE* file = fopen(filename, "rb");
     if (file == NULL) {
         fprintf(stderr, "Failed to open file '%s': %s\n", filename, strerror(errno));
@@ -105,7 +105,7 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
             packet->seq_num = next_seq_num;
             packet->data_size = fread(packet->data, 1, sizeof(packet->data), file);
             packet->is_last = feof(file);
-            strncpy(packet->filename, base_filename, MAX_FILENAME_SIZE - 1);
+            strncpy(packet->filename, filename, MAX_FILENAME_SIZE - 1);
             packet->filename[MAX_FILENAME_SIZE - 1] = '\0';
 
             send_packet(sock, packet, &server_addr);
@@ -154,10 +154,14 @@ void send_file(const char* filename, const char* server_ip, int server_port, int
     server_addr.sin_port = htons(server_port);
 
     window = (WindowSlot*)malloc(window_size * sizeof(WindowSlot));
-    
-    std::sendthread = std::thread(send_thread, filename, sock, &server_addr);
-    std::recvthread = std::thread(receive_thread, sock, timeout);
 
+    char* base_filename = basename((char*)filename);
+    
+    std::thread sendthread = std::thread(send_thread, base_filename, sock, &server_addr, window_size);
+    std::thread recvthread = std::thread(receive_thread, sock, timeout);
+
+    send_thread.join();
+    receive_thread.join();
 }
 
 
