@@ -101,16 +101,12 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
     printf("Successfully opened file: %s\n");
 
     while (base < next_seq_num || !file_finished) {
-        printf("test1\n");
         while (next_seq_num < base + window_size && !file_finished) {
-
-            printf("test2\n");
-
             Packet* packet = &window[next_seq_num % window_size].packet;
             packet->seq_num = next_seq_num;
             packet->data_size = fread(packet->data, 1, sizeof(packet->data), file);
             packet->is_last = feof(file);
-            strncpy(packet->filename, filename, MAX_FILENAME_SIZE - 1);
+            strncpy(packet->filename, basename((char*)filename), MAX_FILENAME_SIZE - 1);
             packet->filename[MAX_FILENAME_SIZE - 1] = '\0';
 
             send_packet(sock, packet, server_addr);
@@ -118,8 +114,8 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
             window[next_seq_num % window_size].acked = 0;
 
             nextseq_increment();
-
             if (packet->is_last) {
+                std::lock_guard<std::mutex> lock(end_lock);
                 file_finished = 1;
             }
         }
