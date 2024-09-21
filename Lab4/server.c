@@ -122,7 +122,7 @@ void run_server(const char* ip, int port) {
                 window[base % WINDOW_SIZE].received = 0;
                 base++;
 
-                send_ack(sock, base - 1, &client_addr);
+                // send_ack(sock, base - 1, &client_addr);
             }
         } else {
             printf("Packet %d outside window [%d, %d], discarding\n", 
