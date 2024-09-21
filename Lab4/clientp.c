@@ -167,8 +167,8 @@ void send_file(const char* filename, const char* server_ip, int server_port, flo
     
     printf("creating threads\n");
     std::thread sendthread(send_thread, base_filename, sock, &server_addr);
+    printf("created send thread\n");
     std::thread recvthread(receive_thread, sock, timeout);
-
     printf("threads started\n");
 
     sendthread.join();
