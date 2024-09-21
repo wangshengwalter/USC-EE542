@@ -9,10 +9,11 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-const int PACKET_SIZE = 8500;
-const int MAX_FILENAME_SIZE 50;
+#define MAX_PACKET_SIZE 8500
+#define MAX_FILENAME_SIZE 50
+
+
 const int WINDOW_SIZE = 5;
-const int MAX_SEQUENCE = 10;
 
 struct Packet {
     int sequence_number;
@@ -68,7 +69,7 @@ public:
     }
 
     int getNextSequence() {
-        return next_sequence++ % MAX_SEQUENCE;
+        return next_sequence++;
     }
 };
 
