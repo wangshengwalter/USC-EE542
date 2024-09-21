@@ -112,7 +112,11 @@ void run_server(const char* ip, int port) {
                     fclose(file);
                     file = NULL;
                     memset(current_filename, 0, MAX_FILENAME_SIZE);
-                }
+
+                    // Send ACK for last packet
+                    send_ack(sock, -2, &client_addr);
+                    break;
+                } 
 
                 printf("Processing packet %d, advancing base\n", base);
                 window[base % WINDOW_SIZE].received = 0;

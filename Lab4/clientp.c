@@ -128,7 +128,7 @@ void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr
 
 void receive_thread(int sock, float timeout, struct sockaddr_in* server_addr) {
     while (base < next_seq_num || !file_finished) {
-        
+
         struct timeval tv;
         tv.tv_sec = 0;
         tv.tv_usec = timeout * 1000; // Convert ms to μs
@@ -155,6 +155,9 @@ void receive_thread(int sock, float timeout, struct sockaddr_in* server_addr) {
                     gettimeofday(&window[index].send_time, NULL);
                 }
             }
+        } else if (ack == -2) {
+            printf("Completed file transfer\n");
+            break;
         } else {
             printf("Received ACK %d outside window [%d, %d], discarding\n", ack, base, next_seq_num);
         }
