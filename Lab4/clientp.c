@@ -195,7 +195,7 @@ int main(int argc, char* argv[]) {
     }
 
     auto start = std::chrono::high_resolution_clock::now();
-    send_file(filename, server_ip, server_port, window_size, timeout);
+    send_file(filename, server_ip, server_port, timeout);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Elapsed time: " << elapsed.count() << " s\n";
