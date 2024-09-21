@@ -95,7 +95,7 @@ void nextseq_increment() {
 void send_thread(const char* filename, int sock, struct sockaddr_in* server_addr) {
     FILE* file = fopen(filename, "rb");
     if (file == NULL) {
-        printf(stderr, "Failed to open file '%s': %s\n", filename, strerror(errno));
+        printf("Failed to open file '%s': %s\n", filename, strerror(errno));
         exit(EXIT_FAILURE);
     }
     printf("Successfully opened file: %s\n", filename);
