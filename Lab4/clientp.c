@@ -134,6 +134,7 @@ private:
         while (!window.isFinished() || window.getPacket().size > 0) {
             Packet packet = window.getPacket();
             sendto(sockfd, &packet, sizeof(Packet), 0, (struct sockaddr*)&server_addr, sizeof(server_addr));
+            printf("Sent packet %d\n", packet.sequence_number);
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     }
@@ -148,6 +149,7 @@ private:
             if (received == sizeof(int)) {
                 int ack;
                 memcpy(&ack, buffer, sizeof(int));
+                printf("Received ACK %d\n", ack);
                 window.ackPacket(ack);
             }
         }
