@@ -73,6 +73,10 @@ private:
         tv.tv_sec = 0;
         tv.tv_usec = timeout * 1000; // Convert ms to μs
     }
+    void increase_timeout(float addition_timeout) {
+        tv.tv_usec += addition_timeout*1000;
+    }
+
 
 
     void send_packet(const Packet* packet) {
@@ -94,15 +98,14 @@ private:
         FD_ZERO(&readfds);
         FD_SET(sock, &readfds);
 
-        auto start = std::chrono::high_resolution_clock::now();
         int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
         if (activity < 0) {
             perror("select error");
             exit(EXIT_FAILURE);
         } else if (activity == 0) {
-            auto end = std::chrono::high_resolution_clock::now();
-            std::chrono::duration<double> elapsed = end - start;
-            printf("Elapsed time: %fms\n", elapsed*1000);
+            //adjust time out
+            increase_timeout(10);
+            printf("Current timeout: %d ms\n", tv.tv_usec/1000);
             return -1;  // Timeout
         } else {
             int ack;
