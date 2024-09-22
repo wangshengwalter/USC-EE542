@@ -154,19 +154,22 @@ private:
         while (base < next_seq_num || !file_finished) {
 
             int ack = receive_ack();
-            if (ack >= base && ack < next_seq_num) {
+            if (ack >= base) {
                 int index = ack % window_size;
                 printf("Received ACK %d  window[%d, %d] with index %d\n", ack, base.load(), next_seq_num.load(), index);
                 
                 for (int i = base; i <= ack; i++) {
                     std::lock_guard<std::mutex> lock(window[i % window_size].lock);
                     window[i % window_size].acked = 1;
-                }
-                
-                while (base < next_seq_num && window[base % window_size].acked) {
+
                     printf("Received ACK %d, advancing base\n", base.load());
                     base++;
                 }
+                
+                // while (base < next_seq_num && window[base % window_size].acked) {
+                //     printf("Received ACK %d, advancing base\n", base.load());
+                //     base++;
+                // }
             }
             else if (ack == -1) {
                 printf("Timeout occurred. Resending unacked packets...\n");
