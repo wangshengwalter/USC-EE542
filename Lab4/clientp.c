@@ -121,7 +121,7 @@ private:
                 packet->seq_num = next_seq_num;
                 packet->data_size = fread(packet->data, 1, sizeof(packet->data), file);
                 packet->is_last = feof(file);
-                strncpy(packet->filename, basename((char*)filename), MAX_FILENAME_SIZE - 1);
+                strncpy(packet->base_filename, basename((char*)base_filename), MAX_FILENAME_SIZE - 1);
                 packet->filename[MAX_FILENAME_SIZE - 1] = '\0';
 
                 send_packet(packet);
@@ -140,7 +140,7 @@ private:
     void receive_thread() {
         while (base < next_seq_num || !file_finished) {
 
-            int ack = receive_ack(sock, &tv);
+            int ack = receive_ack();
             if (ack >= base && ack < next_seq_num) {
                 int index = ack % window_size;
                 printf("Received ACK %d  window[%d, %d] with index %d\n", ack, base.get(), next_seq_num.get(), index);
@@ -198,13 +198,13 @@ public:
     void sendFile(const std::string& filename) {
 
         window = (WindowSlot*)malloc(sliding_window.window_size * sizeof(WindowSlot));
-        if (sliding_window.window == NULL) {
+        if (window == NULL) {
             perror("Failed to allocate memory for window");
             return;
         }
 
         base_filename = basename((char*)filename);
-        if (sliding_window.base_filename == NULL) {
+        if (base_filename == NULL) {
             perror("Failed to get base filename");
             free(window);
             return;
