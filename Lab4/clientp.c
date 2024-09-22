@@ -94,11 +94,15 @@ private:
         FD_ZERO(&readfds);
         FD_SET(sock, &readfds);
 
+        auto start = std::chrono::high_resolution_clock::now();
         int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
         if (activity < 0) {
             perror("select error");
             exit(EXIT_FAILURE);
         } else if (activity == 0) {
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> elapsed = end - start;
+            printf("Elapsed time: %f\n", elapsed.count());
             return -1;  // Timeout
         } else {
             int ack;
