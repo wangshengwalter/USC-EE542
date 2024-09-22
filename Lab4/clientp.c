@@ -58,7 +58,8 @@ private:
     std::atomic<int> next_seq_num{0};
 
 
-    int timeout = 0; //unit in ms
+    struct timeval tv;
+    
 
     int create_socket() {
         int sock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -70,9 +71,9 @@ private:
     }
 
 
-    void increase_timeout(int addition_timeout) {
-        timeout += addition_timeout;
-        printf("Timeout increased to %d ms\n", timeout);
+    void set_timeout(int new_timeout) {
+        tv.tv_sec = 0;
+        tv.tv_usec = new_timeout * 1000; // Convert ms to μs
     }
 
 
@@ -96,17 +97,14 @@ private:
         FD_ZERO(&readfds);
         FD_SET(sock, &readfds);
 
-        struct timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = timeout * 1000; // Convert ms to μs
+        printf("tv.tv_usec: %ld\n", tv.tv_usec);
+
 
         int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
         if (activity < 0) {
             perror("select error");
             exit(EXIT_FAILURE);
         } else if (activity == 0) {
-            //adjust time out
-            increase_timeout(10);
             return -1;  // Timeout
         } else {
             int ack;
@@ -204,7 +202,7 @@ public:
 
         this->window_size = window_size;
 
-        this->timeout = timeout;
+        set_timeout(timeout);
     }
 
     ~UDPSender() {
