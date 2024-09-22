@@ -98,6 +98,8 @@ private:
         struct timeval tv;
         tv.tv_sec = 0;
         tv.tv_usec = timeout * 1000; // Convert ms to μs
+        printf("Current timeout: %ld\n", tv.tv_usec);
+
 
         int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
         if (activity < 0) {
@@ -105,8 +107,6 @@ private:
             exit(EXIT_FAILURE);
         } else if (activity == 0) {
             //adjust time out
-            increase_timeout(10);
-            printf("Current timeout: %ld ms\n", tv.tv_usec);
             return -1;  // Timeout
         } else {
             int ack;
