@@ -28,7 +28,7 @@ typedef struct {
 typedef struct {
     Packet packet;
     int acked;
-    auto send_time;
+    std::chrono::high_resolution_clock::time_point send_time;
     std::mutex lock;
 } WindowSlot;
 
