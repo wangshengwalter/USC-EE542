@@ -143,7 +143,7 @@ private:
             int ack = receive_ack();
             if (ack >= base && ack < next_seq_num) {
                 int index = ack % window_size;
-                printf("Received ACK %d  window[%d, %d] with index %d\n", ack, base, next_seq_num, index);
+                printf("Received ACK %d  window[%d, %d] with index %d\n", ack, base.load(), next_seq_num.load(), index);
                 
                 for (int i = base; i <= ack; i++) {
                     std::lock_guard<std::mutex> lock(window[i % window_size].lock);
@@ -151,7 +151,7 @@ private:
                 }
                 
                 while (base < next_seq_num && window[base % window_size].acked) {
-                    printf("Received ACK %d, advancing base\n", base);
+                    printf("Received ACK %d, advancing base\n", base.load());
                     base++;
                 }
             }
@@ -169,7 +169,7 @@ private:
                 printf("Completed file transfer\n");
                 break;
             } else {
-                printf("Received ACK %d outside window [%d, %d], discarding\n", ack, base, next_seq_num);
+                printf("Received ACK %d outside window [%d, %d], discarding\n", ack, base.load(), next_seq_num.load());
             }
         }
     }
@@ -196,7 +196,7 @@ public:
     }
 
     void sendFile(const std::string& filename) {
-        window = (WindowSlot*)malloc(sliding_window.window_size * sizeof(WindowSlot));
+        window = (WindowSlot*)malloc(window_size * sizeof(WindowSlot));
         if (window == NULL) {
             perror("Failed to allocate memory for window");
             return;
