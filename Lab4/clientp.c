@@ -88,7 +88,7 @@ private:
         FD_ZERO(&readfds);
         FD_SET(sock, &readfds);
 
-        int activity = select(sock + 1, &readfds, NULL, NULL, tv);
+        int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
         if (activity < 0) {
             perror("select error");
             exit(EXIT_FAILURE);
@@ -106,12 +106,12 @@ private:
 
     //send and receive threads
     void send_thread() {
-        FILE* file = fopen(filename, "rb");
+        FILE* file = fopen(base_filename, "rb");
         if (file == NULL) {
-            printf("Failed to open file '%s': %s\n", filename, strerror(errno));
+            printf("Failed to open file '%s': %s\n", base_filename, strerror(errno));
             exit(EXIT_FAILURE);
         }
-        printf("Successfully opened file: %s\n", filename);
+        printf("Successfully opened file: %s\n", base_filename);
 
         while (!file_finished) {
             while (next_seq_num < base + window_size && !file_finished) {
@@ -129,8 +129,7 @@ private:
 
                 next_seq_num++;
                 if (packet->is_last) {
-                    std::lock_guard<std::mutex> lock(end_lock);
-                    file_finished = 1;
+                    file_finished = true;
                     break;
                 }
             }
@@ -144,7 +143,7 @@ private:
             int ack = receive_ack(sock, &tv);
             if (ack >= base && ack < next_seq_num) {
                 int index = ack % window_size;
-                printf("Received ACK %d  window[%d, %d] with index %d\n", ack, base, next_seq_num, index);
+                printf("Received ACK %d  window[%d, %d] with index %d\n", ack, base.get(), next_seq_num.get(), index);
                 
                 for (int i = base; i <= ack; i++) {
                     std::lock_guard<std::mutex> lock(window[i % window_size].lock);
@@ -152,7 +151,7 @@ private:
                 }
                 
                 while (base < next_seq_num && window[base % window_size].acked) {
-                    printf("Received ACK %d, advancing base\n", get_base());
+                    printf("Received ACK %d, advancing base\n", base.get());
                     base++;
                 }
             }
@@ -170,7 +169,7 @@ private:
                 printf("Completed file transfer\n");
                 break;
             } else {
-                printf("Received ACK %d outside window [%d, %d], discarding\n", ack, base, next_seq_num);
+                printf("Received ACK %d outside window [%d, %d], discarding\n", ack, base.get(), next_seq_num.get());
             }
         }
     }
