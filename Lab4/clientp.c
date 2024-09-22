@@ -143,7 +143,7 @@ private:
             int ack = receive_ack();
             if (ack >= base && ack < next_seq_num) {
                 int index = ack % window_size;
-                printf("Received ACK %d  window[%d, %d] with index %d\n", ack, base.get(), next_seq_num.get(), index);
+                printf("Received ACK %d  window[%d, %d] with index %d\n", ack, base, next_seq_num, index);
                 
                 for (int i = base; i <= ack; i++) {
                     std::lock_guard<std::mutex> lock(window[i % window_size].lock);
@@ -151,7 +151,7 @@ private:
                 }
                 
                 while (base < next_seq_num && window[base % window_size].acked) {
-                    printf("Received ACK %d, advancing base\n", base.get());
+                    printf("Received ACK %d, advancing base\n", base);
                     base++;
                 }
             }
@@ -169,7 +169,7 @@ private:
                 printf("Completed file transfer\n");
                 break;
             } else {
-                printf("Received ACK %d outside window [%d, %d], discarding\n", ack, base.get(), next_seq_num.get());
+                printf("Received ACK %d outside window [%d, %d], discarding\n", ack, base, next_seq_num);
             }
         }
     }
@@ -196,7 +196,6 @@ public:
     }
 
     void sendFile(const std::string& filename) {
-
         window = (WindowSlot*)malloc(sliding_window.window_size * sizeof(WindowSlot));
         if (window == NULL) {
             perror("Failed to allocate memory for window");
@@ -210,10 +209,9 @@ public:
             return;
         }
 
-
-        std::thread send_thread(&UDPSender::sendThread, this);
+        std::thread send_thread(&UDPSender::send_thread, this);
         printf("send_thread\n");
-        std::thread ack_thread(&UDPSender::ackThread, this);
+        std::thread ack_thread(&UDPSender::receive_thread, this);
         printf("ack_thread\n");
 
         send_thread.join();
