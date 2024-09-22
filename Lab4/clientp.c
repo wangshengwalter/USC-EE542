@@ -8,89 +8,117 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <atomic>
 
 #define MAX_PACKET_SIZE 8500
 #define MAX_FILENAME_SIZE 50
+#define DEFAULT_WINDOW_SIZE 294
+#define DEFAULT_TIMEOUT 240.0
 
 
-const int WINDOW_SIZE = 5;
-
-struct Packet {
-    int sequence_number;
+typedef struct {
+    int seq_num;
     int is_last;
-    int size;
+    int data_size;
     char filename[MAX_FILENAME_SIZE];
     char data[MAX_PACKET_SIZE - 3 * sizeof(int) - MAX_FILENAME_SIZE];
-};
+} Packet;
 
-class SlidingWindow {
-private:
-    std::vector<Packet> window;
-    std::mutex mtx;
-    std::condition_variable cv;
-    int base;
-    int next_sequence;
-    bool finished;
 
-public:
-    SlidingWindow() : base(0), next_sequence(0), finished(false) {}
+typedef struct {
+    Packet packet;
+    int acked;
+    struct timeval send_time;
+    std::mutex lock;
+} WindowSlot;
 
-    void addPacket(const Packet& packet) {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [this] { return window.size() < WINDOW_SIZE; });
-        window.push_back(packet);
-        cv.notify_all();
-    }
 
-    Packet getPacket() {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [this] { return !window.empty(); });
-        Packet packet = window.front();
-        cv.notify_all();
-        return packet;
-    }
+// class SlidingWindow {
+// private:
+    
 
-    void ackPacket(int ack) {
-        std::unique_lock<std::mutex> lock(mtx);
-        while (!window.empty() && window.front().sequence_number <= ack) {
-            window.erase(window.begin());
-            base++;
-        }
-        cv.notify_all();
-    }
+// public:
+    
+// };
 
-    bool isFinished() const {
-        return finished;
-    }
 
-    void setFinished() {
-        finished = true;
-        cv.notify_all();
-    }
-
-    int getNextSequence() {
-        return next_sequence++;
-    }
-};
 
 class UDPSender {
 private:
-    int sockfd;
+    int sock;
     struct sockaddr_in server_addr;
-    SlidingWindow window;
+
+    char* base_filename = nullptr;
+
+    int window_size = 0;
+    WindowSlot* window = nullptr;
+
+    std::atomic<bool> file_finished{false};
+    std::atomic<int> base{0};
+    std::atomic<int> next_seq_num{0};
+
+
+    struct timeval tv;
+
+    int create_socket() {
+        int sock = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sock < 0) {
+            perror("socket creation failed");
+            exit(EXIT_FAILURE);
+        }
+        return sock;
+    }
+
+    void set_timeout(float timeout) {
+        tv.tv_sec = 0;
+        tv.tv_usec = timeout * 1000; // Convert ms to μs
+    }
+
+
+    void send_packet(const Packet* packet) {
+        if (sendto(sock, packet, sizeof(Packet), 0, (struct sockaddr*)server_addr, sizeof(*server_addr)) < 0) {
+            perror("sendto failed");
+            exit(EXIT_FAILURE);
+        }
+        printf("Sent packet %d (%d bytes)\n", packet->seq_num, packet->data_size);
+    }
+
+    int receive_ack() {
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(sock, &readfds);
+
+        int activity = select(sock + 1, &readfds, NULL, NULL, tv);
+        if (activity < 0) {
+            perror("select error");
+            exit(EXIT_FAILURE);
+        } else if (activity == 0) {
+            return -1;  // Timeout
+        } else {
+            int ack;
+            if (recv(sock, &ack, sizeof(ack), 0) < 0) {
+                perror("recv failed");
+                exit(EXIT_FAILURE);
+            }
+            return ack;
+        }
+    }
 
 public:
-    UDPSender(const char* ip, int port) {
-        sockfd = socket(AF_INET, SOCK_DGRAM, 0);
-        if (sockfd < 0) {
-            std::cerr << "Error creating socket" << std::endl;
-            exit(1);
+    UDPSender(const char* ip, int port, int window_size, float timeout) {
+        sock = create_socket();
+        if (sock < 0) {
+            perror("Failed to create socket");
+            return;
         }
-
+        
         memset(&server_addr, 0, sizeof(server_addr));
         server_addr.sin_family = AF_INET;
         server_addr.sin_port = htons(port);
         inet_pton(AF_INET, ip, &server_addr.sin_addr);
+
+        this->window_size = window_size;
+        set_timeout(timeout);
     }
 
     ~UDPSender() {
@@ -98,59 +126,101 @@ public:
     }
 
     void sendFile(const std::string& filename) {
-        std::ifstream file(filename, std::ios::binary);
-        if (!file) {
-            std::cerr << "Error opening file" << std::endl;
+
+        window = (WindowSlot*)malloc(sliding_window.window_size * sizeof(WindowSlot));
+        if (sliding_window.window == NULL) {
+            perror("Failed to allocate memory for window");
             return;
         }
+
+        base_filename = basename((char*)filename);
+        if (sliding_window.base_filename == NULL) {
+            perror("Failed to get base filename");
+            free(window);
+            return;
+        }
+
 
         std::thread send_thread(&UDPSender::sendThread, this);
         printf("send_thread\n");
         std::thread ack_thread(&UDPSender::ackThread, this);
         printf("ack_thread\n");
 
-        Packet packet;
-
-        while(file) {
-            file.read(packet.data, sizeof(packet.data));
-            packet.size = file.gcount();
-            packet.sequence_number = window.getNextSequence();
-            packet.is_last = file.eof();
-            strncpy(packet.filename, filename.c_str(), MAX_FILENAME_SIZE);
-            window.addPacket(packet);
-
-            if(file.eof()) {
-                break;
-            }
-        }
-
-        window.setFinished();
         send_thread.join();
         ack_thread.join();
+
+        printf("File transfer complete\n");
     }
 
 private:
-    void sendThread() {
-        while (!window.isFinished() || window.getPacket().size > 0) {
-            Packet packet = window.getPacket();
-            sendto(sockfd, &packet, sizeof(Packet), 0, (struct sockaddr*)&server_addr, sizeof(server_addr));
-            printf("Sent packet %d\n", packet.sequence_number);
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    void send_thread() {
+        FILE* file = fopen(filename, "rb");
+        if (file == NULL) {
+            printf("Failed to open file '%s': %s\n", filename, strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        printf("Successfully opened file: %s\n", filename);
+
+        while (!file_finished) {
+            while (get_nextseq() < get_base() + window_size && !file_finished) {
+                std::lock_guard<std::mutex> lock(window[get_nextseq() % window_size].lock);
+
+                Packet* packet = &window[get_nextseq() % window_size].packet;
+                packet->seq_num = get_nextseq();
+                packet->data_size = fread(packet->data, 1, sizeof(packet->data), file);
+                packet->is_last = feof(file);
+                strncpy(packet->filename, basename((char*)filename), MAX_FILENAME_SIZE - 1);
+                packet->filename[MAX_FILENAME_SIZE - 1] = '\0';
+
+                send_packet(sock, packet, server_addr);
+                gettimeofday(&window[get_nextseq() % window_size].send_time, NULL);
+                window[get_nextseq() % window_size].acked = 0;
+
+                nextseq_increment();
+                if (packet->is_last) {
+                    std::lock_guard<std::mutex> lock(end_lock);
+                    file_finished = 1;
+                    break;
+                }
+            }
         }
     }
 
-    void ackThread() {
-        char buffer[sizeof(int)];
-        struct sockaddr_in client_addr;
-        socklen_t client_len = sizeof(client_addr);
 
-        while (!window.isFinished()) {
-            ssize_t received = recvfrom(sockfd, buffer, sizeof(int), 0, (struct sockaddr*)&client_addr, &client_len);
-            if (received == sizeof(int)) {
-                int ack;
-                memcpy(&ack, buffer, sizeof(int));
-                printf("Received ACK %d\n", ack);
-                window.ackPacket(ack);
+    void receive_thread() {
+        while (get_base() < get_nextseq() || !file_finished) {
+
+            int ack = receive_ack(sock, &tv);
+            if (ack >= get_base() && ack < get_nextseq()) {
+                int index = ack % window_size;
+                printf("Received ACK %d  window[%d, %d] with index %d\n", ack, get_base(), get_nextseq(), index);
+                
+                for (int i = get_base(); i <= ack; i++) {
+                    std::lock_guard<std::mutex> lock(window[i % window_size].lock);
+                    window[i % window_size].acked = 1;
+                }
+                
+                while (get_base() < get_nextseq() && window[get_base() % window_size].acked) {
+                    printf("Received ACK %d, advancing base\n", get_base());
+                    base_increment();
+                }
+            }
+            else if (ack == -1) {
+                printf("Timeout occurred. Resending unacked packets...\n");
+                for (int i = get_base(); i < get_nextseq(); i++) {
+                    int index = i % window_size;
+                    std::lock_guard<std::mutex> lock(window[index].lock);
+                    if (!window[index].acked) {
+                        Packet* packet = &window[index].packet;
+                        send_packet(sock, packet, server_addr);
+                        gettimeofday(&window[index].send_time, NULL);
+                    }
+                }
+            } else if (ack == -2) {
+                printf("Completed file transfer\n");
+                break;
+            } else {
+                printf("Received ACK %d outside window [%d, %d], discarding\n", ack, get_base(), get_nextseq());
             }
         }
     }
@@ -166,7 +236,7 @@ int main(int argc, char* argv[]) {
     int port = std::stoi(argv[2]);
     const char* filename = argv[3];
 
-    UDPSender sender(ip, port);
+    UDPSender sender(ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT);
     sender.sendFile(filename);
 
     return 0;
