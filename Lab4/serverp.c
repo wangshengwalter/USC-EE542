@@ -61,7 +61,6 @@ void run_server(const char* ip, int port) {
     int base = 0;
     char current_filename[MAX_FILENAME_SIZE] = {0};
 
-    // Initialize window
     for (int i = 0; i < WINDOW_SIZE; i++) {
         window[i].received = 0;
     }
@@ -79,7 +78,6 @@ void run_server(const char* ip, int port) {
 
         printf("Received packet %d for file %s (%d bytes)\n", packet.seq_num, packet.filename, packet.data_size);
 
-        // Accept packets within the window and the buffer zone
         if (packet.seq_num >= base && packet.seq_num < base + WINDOW_SIZE + BUFFER_ZONE) {
             int index = packet.seq_num % WINDOW_SIZE;
             window[index].packet = packet;
@@ -88,7 +86,6 @@ void run_server(const char* ip, int port) {
             printf("Accepted packet %d (base: %d, window: [%d, %d])\n", 
                    packet.seq_num, base, base, base + WINDOW_SIZE - 1);
 
-            // Process packets in order, stopping at the first gap
             while (window[base % WINDOW_SIZE].received) {
                 Packet* current_packet = &window[base % WINDOW_SIZE].packet;
 
