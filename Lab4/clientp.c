@@ -102,7 +102,7 @@ private:
         } else if (activity == 0) {
             auto end = std::chrono::high_resolution_clock::now();
             std::chrono::duration<double> elapsed = end - start;
-            printf("Elapsed time: %fms\n", elapsed_time*1000);
+            printf("Elapsed time: %fms\n", elapsed*1000);
             return -1;  // Timeout
         } else {
             int ack;
