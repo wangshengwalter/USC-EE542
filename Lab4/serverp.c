@@ -159,10 +159,10 @@ void run_server(const char* ip, int port) {
 
 
     std::thread send_thread1(receive_thread);
-    std::thread ack_thread(send_thread);
+    // std::thread ack_thread(send_thread);
 
     send_thread1.join();
-    ack_thread.join();
+    // ack_thread.join();
 
     close(sock);
 }
