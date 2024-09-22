@@ -5,6 +5,10 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/time.h>
+#include <thread>
+#include <mutex>
+#include <atomic>
+#include <iostream>
 
 #define MAX_PACKET_SIZE 8500
 #define MAX_FILENAME_SIZE 50
@@ -52,23 +56,23 @@ void send_ack(int sock, int ack, struct sockaddr_in* client_addr) {
     printf("Sent ACK %d\n", ack);
 }
 
-void run_server(const char* ip, int port) {
-    int sock = create_socket(ip, port); 
-    struct sockaddr_in client_addr;
+int sock;
+struct sockaddr_in client_addr;
+
+
+WindowSlot window[WINDOW_SIZE];
+std::atomic<int> base{0};
+std::atomic<bool> file_finished{false};
+
+char current_filename[MAX_FILENAME_SIZE] = {0};
+
+
+void receive_thread(){
     Packet packet;
     FILE* file = NULL;
-    WindowSlot window[WINDOW_SIZE];
-    int base = 0;
-    char current_filename[MAX_FILENAME_SIZE] = {0};
 
-    // Initialize window
-    for (int i = 0; i < WINDOW_SIZE; i++) {
-        window[i].received = 0;
-    }
-
-    printf("Server listening on %s:%d\n", ip, port);
-
-    while (1) {
+    while (!file_finished)
+    {
         socklen_t client_len = sizeof(client_addr);
         ssize_t received = recvfrom(sock, &packet, sizeof(Packet), 0, (struct sockaddr*)&client_addr, &client_len);
 
@@ -79,14 +83,13 @@ void run_server(const char* ip, int port) {
 
         printf("Received packet %d for file %s (%d bytes)\n", packet.seq_num, packet.filename, packet.data_size);
 
-        // Accept packets within the window and the buffer zone
         if (packet.seq_num >= base && packet.seq_num < base + WINDOW_SIZE + BUFFER_ZONE) {
             int index = packet.seq_num % WINDOW_SIZE;
             window[index].packet = packet;
             window[index].received = 1;
 
             printf("Accepted packet %d (base: %d, window: [%d, %d])\n", 
-                   packet.seq_num, base, base, base + WINDOW_SIZE - 1);
+                   packet.seq_num, base.load(), base.load(), base.load() + WINDOW_SIZE - 1);
 
             // Process packets in order, stopping at the first gap
             while (window[base % WINDOW_SIZE].received) {
@@ -115,6 +118,8 @@ void run_server(const char* ip, int port) {
 
                     // Send ACK for last packet
                     send_ack(sock, -2, &client_addr);
+
+                    file_finished = true;
                 } 
 
                 printf("Processing packet %d, advancing base\n", base);
@@ -127,10 +132,37 @@ void run_server(const char* ip, int port) {
             printf("Packet %d outside window [%d, %d], discarding\n", 
                    packet.seq_num, base, base + WINDOW_SIZE + BUFFER_ZONE - 1);
         }
-
-        // Always send an ACK for the highest in-order packet received
-        send_ack(sock, base - 1, &client_addr);
     }
+}
+void send_thread(){
+    while (!file_finished){
+        if(client_addr.sin_addr.s_addr == 0){
+            continue;
+        }
+        // Send ACK for last packet
+        if(base > 0){
+            send_ack(sock, base-1, &client_addr);
+        } 
+        //sleep 1ms
+        usleep(1000);
+    }
+}
+
+void run_server(const char* ip, int port) {
+    sock = create_socket(ip, port); 
+    
+    // Initialize window
+    for (int i = 0; i < WINDOW_SIZE; i++) {
+        window[i].received = 0;
+    }
+    printf("Server listening on %s:%d\n", ip, port);
+
+
+    std::thread send_thread1(receive_thread, this);
+    std::thread ack_thread(send_thread, this);
+
+    send_thread1.join();
+    ack_thread.join();
 
     close(sock);
 }
