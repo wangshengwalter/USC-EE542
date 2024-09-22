@@ -69,12 +69,9 @@ private:
         return sock;
     }
 
-    void set_timeout(long timeout) {
-        tv.tv_sec = 0;
-        tv.tv_usec = timeout * 1000; // Convert ms to μs
-    }
+
     void increase_timeout(long addition_timeout) {
-        tv.tv_usec = tv.tv_usec + addition_timeout * 1000;
+        tv.tv_usec += addition_timeout*1000;
     }
 
 
@@ -202,7 +199,11 @@ public:
         inet_pton(AF_INET, ip, &server_addr.sin_addr);
 
         this->window_size = window_size;
-        set_timeout(timeout);
+
+        
+        memset(&tv, 0, sizeof(tv));
+        tv.tv_sec = 0;
+        tv.tv_usec = timeout * 1000; // Convert ms to μs
     }
 
     ~UDPSender() {
