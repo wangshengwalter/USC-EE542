@@ -139,6 +139,7 @@ private:
                     break;
                 }
             }
+            std::this_thread::sleep_for(std::chrono::microseconds(1)); //let reveive thread run
         }
     }
 
@@ -238,7 +239,12 @@ int main(int argc, char* argv[]) {
     const char* filename = argv[3];
 
     UDPSender sender(ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT);
+
+    auto start = std::chrono::high_resolution_clock::now();
     sender.sendFile(filename);
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    std::cout << "Elapsed time: " << elapsed.count() << "s" << std::endl;
 
     return 0;
 }
