@@ -105,7 +105,7 @@ private:
         } else if (activity == 0) {
             //adjust time out
             increase_timeout(10);
-            printf("Current timeout: %d ms\n", tv.tv_usec/1000);
+            printf("Current timeout: %f ms\n", tv.tv_usec/1000);
             return -1;  // Timeout
         } else {
             int ack;
