@@ -76,10 +76,16 @@ private:
 
 
     void send_packet(const Packet* packet) {
-        if (sendto(sock, packet, sizeof(Packet), 0, (struct sockaddr*)server_addr, sizeof(*server_addr)) < 0) {
+        if (packet == nullptr){
+            return;
+        }
+
+        
+        if (sendto(sock, packet, sizeof(Packet), 0, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
             perror("sendto failed");
             exit(EXIT_FAILURE);
         }
+        
         printf("Sent packet %d (%d bytes)\n", packet->seq_num, packet->data_size);
     }
 
@@ -121,7 +127,7 @@ private:
                 packet->seq_num = next_seq_num;
                 packet->data_size = fread(packet->data, 1, sizeof(packet->data), file);
                 packet->is_last = feof(file);
-                strncpy(packet->base_filename, basename((char*)base_filename), MAX_FILENAME_SIZE - 1);
+                strncpy(packet->filename, basename((char*)base_filename), MAX_FILENAME_SIZE - 1);
                 packet->filename[MAX_FILENAME_SIZE - 1] = '\0';
 
                 send_packet(packet);
@@ -192,10 +198,10 @@ public:
     }
 
     ~UDPSender() {
-        close(sockfd);
+        close(sock);
     }
 
-    void sendFile(const std::string& filename) {
+    void sendFile(const char* filename) {
         window = (WindowSlot*)malloc(window_size * sizeof(WindowSlot));
         if (window == NULL) {
             perror("Failed to allocate memory for window");
