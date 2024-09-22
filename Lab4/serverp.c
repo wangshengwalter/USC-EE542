@@ -122,7 +122,7 @@ void receive_thread(){
                     file_finished = true;
                 } 
 
-                printf("Processing packet %d, advancing base\n", base);
+                printf("Processing packet %d, advancing base\n", base.load());
                 window[base % WINDOW_SIZE].received = 0;
                 base++;
 
@@ -158,8 +158,8 @@ void run_server(const char* ip, int port) {
     printf("Server listening on %s:%d\n", ip, port);
 
 
-    std::thread send_thread1(receive_thread, this);
-    std::thread ack_thread(send_thread, this);
+    std::thread send_thread1(receive_thread);
+    std::thread ack_thread(send_thread);
 
     send_thread1.join();
     ack_thread.join();
