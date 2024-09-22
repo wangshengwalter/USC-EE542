@@ -181,7 +181,7 @@ private:
                 //     base++;
                 // }
             }
-            else if (ack == -1) {
+            else if (ack == -1 || ack == base -1) {
                 printf("Timeout occurred. Resending unacked packets...\n");
                 for (int i = base; i < next_seq_num; i++) {
                     int index = i % window_size;

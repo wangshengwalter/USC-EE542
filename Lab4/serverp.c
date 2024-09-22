@@ -144,7 +144,7 @@ void send_thread(){
             send_ack(sock, base-1, &client_addr);
         } 
         //sleep 1ms
-        usleep(1000);
+        usleep(20000);
     }
 }
 
