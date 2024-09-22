@@ -99,7 +99,7 @@ private:
         FD_ZERO(&readfds);
         FD_SET(sock, &readfds);
 
-        printf("tv.tv_usec: %ld\n", &tv.tv_usec);
+        printf("tv.tv_usec: %ln\n", &tv.tv_usec);
 
 
         int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
