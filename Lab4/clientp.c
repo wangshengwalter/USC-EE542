@@ -104,7 +104,7 @@ private:
             exit(EXIT_FAILURE);
         } else if (activity == 0) {
             //adjust time out
-            increase_timeout(10);
+            // increase_timeout(10);
             printf("Current timeout: %ld ms\n", tv.tv_usec);
             return -1;  // Timeout
         } else {
