@@ -104,6 +104,77 @@ private:
         }
     }
 
+    //send and receive threads
+    void send_thread() {
+        FILE* file = fopen(filename, "rb");
+        if (file == NULL) {
+            printf("Failed to open file '%s': %s\n", filename, strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+        printf("Successfully opened file: %s\n", filename);
+
+        while (!file_finished) {
+            while (next_seq_num < base + window_size && !file_finished) {
+                std::lock_guard<std::mutex> lock(window[next_seq_num % window_size].lock);
+
+                Packet* packet = &window[next_seq_num % window_size].packet;
+                packet->seq_num = next_seq_num;
+                packet->data_size = fread(packet->data, 1, sizeof(packet->data), file);
+                packet->is_last = feof(file);
+                strncpy(packet->filename, basename((char*)filename), MAX_FILENAME_SIZE - 1);
+                packet->filename[MAX_FILENAME_SIZE - 1] = '\0';
+
+                send_packet(packet);
+                window[next_seq_num % window_size].acked = 0;
+
+                next_seq_num++;
+                if (packet->is_last) {
+                    std::lock_guard<std::mutex> lock(end_lock);
+                    file_finished = 1;
+                    break;
+                }
+            }
+        }
+    }
+
+
+    void receive_thread() {
+        while (base < next_seq_num || !file_finished) {
+
+            int ack = receive_ack(sock, &tv);
+            if (ack >= base && ack < next_seq_num) {
+                int index = ack % window_size;
+                printf("Received ACK %d  window[%d, %d] with index %d\n", ack, base, next_seq_num, index);
+                
+                for (int i = base; i <= ack; i++) {
+                    std::lock_guard<std::mutex> lock(window[i % window_size].lock);
+                    window[i % window_size].acked = 1;
+                }
+                
+                while (base < next_seq_num && window[base % window_size].acked) {
+                    printf("Received ACK %d, advancing base\n", get_base());
+                    base++;
+                }
+            }
+            else if (ack == -1) {
+                printf("Timeout occurred. Resending unacked packets...\n");
+                for (int i = base; i < next_seq_num; i++) {
+                    int index = i % window_size;
+                    std::lock_guard<std::mutex> lock(window[index].lock);
+                    if (!window[index].acked) {
+                        Packet* packet = &window[index].packet;
+                        send_packet(packet);
+                    }
+                }
+            } else if (ack == -2) {
+                printf("Completed file transfer\n");
+                break;
+            } else {
+                printf("Received ACK %d outside window [%d, %d], discarding\n", ack, base, next_seq_num);
+            }
+        }
+    }
+
 public:
     UDPSender(const char* ip, int port, int window_size, float timeout) {
         sock = create_socket();
@@ -150,79 +221,6 @@ public:
         ack_thread.join();
 
         printf("File transfer complete\n");
-    }
-
-private:
-    void send_thread() {
-        FILE* file = fopen(filename, "rb");
-        if (file == NULL) {
-            printf("Failed to open file '%s': %s\n", filename, strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-        printf("Successfully opened file: %s\n", filename);
-
-        while (!file_finished) {
-            while (get_nextseq() < get_base() + window_size && !file_finished) {
-                std::lock_guard<std::mutex> lock(window[get_nextseq() % window_size].lock);
-
-                Packet* packet = &window[get_nextseq() % window_size].packet;
-                packet->seq_num = get_nextseq();
-                packet->data_size = fread(packet->data, 1, sizeof(packet->data), file);
-                packet->is_last = feof(file);
-                strncpy(packet->filename, basename((char*)filename), MAX_FILENAME_SIZE - 1);
-                packet->filename[MAX_FILENAME_SIZE - 1] = '\0';
-
-                send_packet(sock, packet, server_addr);
-                gettimeofday(&window[get_nextseq() % window_size].send_time, NULL);
-                window[get_nextseq() % window_size].acked = 0;
-
-                nextseq_increment();
-                if (packet->is_last) {
-                    std::lock_guard<std::mutex> lock(end_lock);
-                    file_finished = 1;
-                    break;
-                }
-            }
-        }
-    }
-
-
-    void receive_thread() {
-        while (get_base() < get_nextseq() || !file_finished) {
-
-            int ack = receive_ack(sock, &tv);
-            if (ack >= get_base() && ack < get_nextseq()) {
-                int index = ack % window_size;
-                printf("Received ACK %d  window[%d, %d] with index %d\n", ack, get_base(), get_nextseq(), index);
-                
-                for (int i = get_base(); i <= ack; i++) {
-                    std::lock_guard<std::mutex> lock(window[i % window_size].lock);
-                    window[i % window_size].acked = 1;
-                }
-                
-                while (get_base() < get_nextseq() && window[get_base() % window_size].acked) {
-                    printf("Received ACK %d, advancing base\n", get_base());
-                    base_increment();
-                }
-            }
-            else if (ack == -1) {
-                printf("Timeout occurred. Resending unacked packets...\n");
-                for (int i = get_base(); i < get_nextseq(); i++) {
-                    int index = i % window_size;
-                    std::lock_guard<std::mutex> lock(window[index].lock);
-                    if (!window[index].acked) {
-                        Packet* packet = &window[index].packet;
-                        send_packet(sock, packet, server_addr);
-                        gettimeofday(&window[index].send_time, NULL);
-                    }
-                }
-            } else if (ack == -2) {
-                printf("Completed file transfer\n");
-                break;
-            } else {
-                printf("Received ACK %d outside window [%d, %d], discarding\n", ack, get_base(), get_nextseq());
-            }
-        }
     }
 };
 
