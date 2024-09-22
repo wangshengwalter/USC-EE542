@@ -12,7 +12,7 @@
 
 #define MAX_PACKET_SIZE 8500
 #define MAX_FILENAME_SIZE 50
-#define DEFAULT_WINDOW_SIZE 294
+#define DEFAULT_WINDOW_SIZE 5
 #define DEFAULT_TIMEOUT 240.0
 
 
@@ -85,7 +85,7 @@ private:
             perror("sendto failed");
             exit(EXIT_FAILURE);
         }
-        
+
         printf("Sent packet %d (%d bytes)\n", packet->seq_num, packet->data_size);
     }
 
