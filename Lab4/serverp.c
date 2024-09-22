@@ -130,7 +130,7 @@ void receive_thread(){
             }
         } else {
             printf("Packet %d outside window [%d, %d], discarding\n", 
-                   packet.seq_num, base, base + WINDOW_SIZE + BUFFER_ZONE - 1);
+                   packet.seq_num, base.load(), base.load() + WINDOW_SIZE + BUFFER_ZONE - 1);
         }
     }
 }
