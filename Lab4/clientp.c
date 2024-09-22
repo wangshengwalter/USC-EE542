@@ -107,6 +107,7 @@ private:
             exit(EXIT_FAILURE);
         } else if (activity == 0) {
             //adjust time out
+            increase_timeout(10);
             return -1;  // Timeout
         } else {
             int ack;
