@@ -28,7 +28,7 @@ typedef struct {
 typedef struct {
     Packet packet;
     int acked;
-    struct timeval send_time;
+    auto send_time;
     std::mutex lock;
 } WindowSlot;
 
@@ -58,6 +58,7 @@ private:
     std::atomic<int> next_seq_num{0};
 
 
+    int timeout = 0;
     struct timeval tv;
     
 
@@ -72,6 +73,7 @@ private:
 
 
     void set_timeout(int new_timeout) {
+        timeout = new_timeout;
         tv.tv_sec = 0;
         tv.tv_usec = new_timeout * 1000; // Convert ms to μs
     }
@@ -97,7 +99,7 @@ private:
         FD_ZERO(&readfds);
         FD_SET(sock, &readfds);
 
-        printf("tv.tv_usec: %ld\n", tv.tv_usec);
+        printf("tv.tv_usec: %ld\n", &tv.tv_usec);
 
 
         int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
@@ -138,6 +140,7 @@ private:
 
                 send_packet(packet);
                 window[next_seq_num % window_size].acked = 0;
+                window[next_seq_num % window_size].send_time = std::chrono::system_clock::now();
 
                 next_seq_num++;
                 if (packet->is_last) {
@@ -161,6 +164,12 @@ private:
                 for (int i = base; i <= ack; i++) {
                     std::lock_guard<std::mutex> lock(window[i % window_size].lock);
                     window[i % window_size].acked = 1;
+
+                    auto now = std::chrono::system_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now - window[i % window_size].send_time);
+                    //change timeout
+                    timeout = (timeout + duration.count()) / 2;
+                    printf("Currently Timeout: %d\n", timeout);
 
                     printf("Received ACK %d, advancing base\n", base.load());
                     base++;
@@ -226,12 +235,16 @@ public:
             return;
         }
 
-        std::thread send_thread(&UDPSender::send_thread, this);
+        std::thread send_thread1(&UDPSender::send_thread, this);
+        // std::thread send_thread2(&UDPSender::send_thread, this);
+        // std::thread send_thread3(&UDPSender::send_thread, this);
         printf("send_thread\n");
         std::thread ack_thread(&UDPSender::receive_thread, this);
         printf("ack_thread\n");
 
-        send_thread.join();
+        send_thread1.join();
+        // send_thread2.join();
+        // send_thread3.join();
         ack_thread.join();
 
         printf("File transfer complete\n");
