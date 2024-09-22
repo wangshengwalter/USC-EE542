@@ -69,12 +69,12 @@ private:
         return sock;
     }
 
-    void set_timeout(float timeout) {
+    void set_timeout(long timeout) {
         tv.tv_sec = 0;
         tv.tv_usec = timeout * 1000; // Convert ms to μs
     }
-    void increase_timeout(float addition_timeout) {
-        tv.tv_usec += addition_timeout*1000;
+    void increase_timeout(long addition_timeout) {
+        tv.tv_usec = tv.tv_usec + addition_timeout * 1000;
     }
 
 
