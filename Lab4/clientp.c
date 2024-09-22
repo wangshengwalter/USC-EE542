@@ -12,8 +12,8 @@
 
 #define MAX_PACKET_SIZE 8500
 #define MAX_FILENAME_SIZE 50
-#define DEFAULT_WINDOW_SIZE 5
-#define DEFAULT_TIMEOUT 240.0
+#define DEFAULT_WINDOW_SIZE 300
+#define DEFAULT_TIMEOUT 260.0
 
 
 typedef struct {
@@ -72,6 +72,7 @@ private:
 
     void increase_timeout(int addition_timeout) {
         timeout += addition_timeout;
+        printf("Timeout increased to %d ms\n", timeout);
     }
 
 
@@ -98,8 +99,6 @@ private:
         struct timeval tv;
         tv.tv_sec = 0;
         tv.tv_usec = timeout * 1000; // Convert ms to μs
-        printf("Current timeout: %ld\n", tv.tv_usec);
-
 
         int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
         if (activity < 0) {

@@ -8,7 +8,7 @@
 
 #define MAX_PACKET_SIZE 8500
 #define MAX_FILENAME_SIZE 50
-#define WINDOW_SIZE 5
+#define WINDOW_SIZE 300
 #define BUFFER_ZONE 5
 
 typedef struct {
