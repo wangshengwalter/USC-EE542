@@ -59,7 +59,7 @@ private:
 
 
     int timeout = 0;
-    struct timeval tv;
+    // struct timeval tv;
     
 
     int create_socket() {
@@ -74,8 +74,8 @@ private:
 
     void set_timeout(int new_timeout) {
         timeout = new_timeout;
-        tv.tv_sec = 0;
-        tv.tv_usec = new_timeout * 1000; // Convert ms to μs
+        // tv.tv_sec = 0;
+        // tv.tv_usec = new_timeout * 1000; // Convert ms to μs
     }
 
 
@@ -99,8 +99,9 @@ private:
         FD_ZERO(&readfds);
         FD_SET(sock, &readfds);
 
-        printf("tv.tv_usec: %ln\n", &tv.tv_usec);
-
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = timeout * 1000; // Convert ms to μs
 
         int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
         if (activity < 0) {
