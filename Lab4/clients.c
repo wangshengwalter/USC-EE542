@@ -41,6 +41,13 @@ private:
     }
 
 public:
+    ~UDPSender() {
+        close(sock);
+        if (filename != nullptr) {
+            free((void*)filename);
+        }
+    }
+    
     UDPSender(const char* ip, int port, int window_size, float timeout, const char* filename, int file_separator) {
         sock = create_socket();
         if (sock < 0) {
@@ -65,13 +72,6 @@ public:
         }
 
         this->file_separator = file_separator;
-    }
-
-    ~UDPSender() {
-        close(sock);
-        if (filename != nullptr) {
-            free((void*)filename);
-        }
     }
 
     void sendFile() {
