@@ -47,7 +47,7 @@ public:
             free((void*)filename);
         }
     }
-    
+
     UDPSender(const char* ip, int port, int window_size, float timeout, const char* filename, int file_separator) {
         sock = create_socket();
         if (sock < 0) {
@@ -67,7 +67,6 @@ public:
         this->filename = basename((char*)filename);
         if (this->filename == NULL) {
             perror("Failed to get base filename");
-            ~UDPSender();
             return;
         }
 
