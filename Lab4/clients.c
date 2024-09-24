@@ -22,7 +22,18 @@ private:
 
     int timeout = 0;
 
-    char* filename = nullptr;
+    const char* filename = nullptr;
+
+
+    int create_socket() {
+        int sock = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sock < 0) {
+            perror("socket creation failed");
+            return -1;
+        }
+
+        return sock;
+    }
 
 public:
     UDPSender(const char* ip, int port, int window_size, float timeout, const char* filename) {
@@ -53,7 +64,7 @@ public:
         //seperate the file into smaller parts
         int num_subfiles = 8;
 
-        std::ifstream input(this.filename, std::ios::binary);
+        std::ifstream input(this->filename, std::ios::binary);
         if (!input) {
             std::cerr << "Error opening input file." << std::endl;
             return;
@@ -68,7 +79,7 @@ public:
         std::vector<char> buffer(part_size);
 
         for (int i = 0; i < NUM_PARTS; ++i) {
-            std::string output_filename = this.filename + ".part" + std::to_string(i + 1);
+            std::string output_filename = this->filename + ".part" + std::to_string(i + 1);
             std::ofstream output(output_filename, std::ios::binary);
             
             if (!output) {
@@ -87,14 +98,14 @@ public:
 
 
     void combine_files() {
-        std::ofstream output(this.filename, std::ios::binary);
+        std::ofstream output(this->filename, std::ios::binary);
         if (!output) {
             std::cerr << "Error creating output file." << std::endl;
             return;
         }
 
         for (int i = 0; i < NUM_PARTS; ++i) {
-            std::string input_filename = this.filename + ".part" + std::to_string(i + 1);
+            std::string input_filename = this->filename + ".part" + std::to_string(i + 1);
             std::ifstream input(input_filename, std::ios::binary);
             
             if (!input) {
