@@ -107,16 +107,33 @@ public:
     }
 
 
+    std::string modifyFilename(const char* filename) {
+        size_t lastdot = std::string(filename).find_last_of(".");
+        size_t firstdot = std::string(filename).find_first_of(".");
 
-    void combine_files(int file_separator) {
-        std::ofstream output(this->filename, std::ios::binary);
+        if (lastDot == std::string::npos) {
+            return std::string(filename)+"_copy";
+        } else if (firstDot != lastDot) {
+            return std::string(filename)+"_copy";
+        } else {
+            std::string name = filename.substr(0, lastDot);
+            std::string extension = filename.substr(lastDot);
+            return name + "_copy" + extension;
+        }
+    }
+
+
+
+    void combine_files(const char* filename, int file_separator) {
+        std::string output_filename = modifyFilename(filename);
+        std::ofstream output(output_filename, std::ios::binary);
         if (!output) {
             std::cerr << "Error creating output file." << std::endl;
             return;
         }
 
         for (int i = 0; i < file_separator; ++i) {
-            std::string input_filename = std::string(this->filename) + ".part" + std::to_string(i + 1);
+            std::string input_filename = std::string(filename) + ".part" + std::to_string(i + 1);
             std::ifstream input(input_filename, std::ios::binary);
             
             if (!input) {
@@ -156,7 +173,7 @@ int main(int argc, char* argv[]) {
     auto start = std::chrono::high_resolution_clock::now();
     sender.sendFile();
 
-    sender.combine_files(file_separator);
+    sender.combine_files(filename, file_separator);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Elapsed time: " << elapsed.count() << "s" << std::endl;
