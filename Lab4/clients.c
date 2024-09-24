@@ -69,6 +69,9 @@ public:
 
     ~UDPSender() {
         close(sock);
+        if (filename != nullptr) {
+            free((void*)filename);
+        }
     }
 
     void sendFile() {
