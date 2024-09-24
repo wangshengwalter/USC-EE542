@@ -43,9 +43,6 @@ private:
 public:
     ~UDPSender() {
         close(sock);
-        if (filename != nullptr) {
-            free((void*)filename);
-        }
     }
 
     UDPSender(const char* ip, int port, int window_size, float timeout, const char* filename, int file_separator) {
