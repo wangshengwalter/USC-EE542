@@ -60,7 +60,7 @@ public:
         this->filename = basename((char*)filename);
         if (this->filename == NULL) {
             perror("Failed to get base filename");
-            free(window);
+            ~UDPSender();
             return;
         }
 
