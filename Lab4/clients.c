@@ -57,7 +57,12 @@ public:
 
         this->timeout = timeout;
 
-        this->filename = filename;
+        this->filename = basename((char*)filename);
+        if (this->filename == NULL) {
+            perror("Failed to get base filename");
+            free(window);
+            return;
+        }
 
         this->file_separator = file_separator;
     }
@@ -83,7 +88,7 @@ public:
         std::vector<char> buffer(part_size);
 
         for (int i = 0; i < file_separator; ++i) {
-            std::string output_filename = this->filename + ".part" + std::to_string(i + 1);
+            std::string output_filename = std::string(this->filename) + ".part" + std::to_string(i + 1);
             std::ofstream output(output_filename, std::ios::binary);
             
             if (!output) {
@@ -109,7 +114,7 @@ public:
         }
 
         for (int i = 0; i < file_separator; ++i) {
-            std::string input_filename = this->filename + ".part" + std::to_string(i + 1);
+            std::string input_filename = std::string(this->filename) + ".part" + std::to_string(i + 1);
             std::ifstream input(input_filename, std::ios::binary);
             
             if (!input) {
