@@ -11,6 +11,9 @@
 #include <atomic>
 #include <cmath>
 
+#define DEFAULT_WINDOW_SIZE 300
+#define DEFAULT_TIMEOUT 260.0
+
 
 
 
