@@ -24,6 +24,7 @@ private:
     int timeout = 0;
 
     const char* filename = nullptr;
+    int file_separator = 0;
 
 
     int create_socket() {
@@ -37,7 +38,7 @@ private:
     }
 
 public:
-    UDPSender(const char* ip, int port, int window_size, float timeout, const char* filename) {
+    UDPSender(const char* ip, int port, int window_size, float timeout, const char* filename, int file_separator) {
         sock = create_socket();
         if (sock < 0) {
             perror("Failed to create socket");
@@ -54,6 +55,8 @@ public:
         this->timeout = timeout;
 
         this->filename = filename;
+
+        this->file_separator = file_separator;
     }
 
     ~UDPSender() {
@@ -61,9 +64,6 @@ public:
     }
 
     void sendFile() {
-
-        //seperate the file into smaller parts
-        int num_subfiles = 8;
 
         std::ifstream input(this->filename, std::ios::binary);
         if (!input) {
@@ -75,11 +75,11 @@ public:
         std::streamsize file_size = input.tellg();
         input.seekg(0, std::ios::beg);
 
-        std::streamsize part_size = std::ceil(static_cast<double>(file_size) / NUM_PARTS);
+        std::streamsize part_size = std::ceil(static_cast<double>(file_size) / file_separator);
 
         std::vector<char> buffer(part_size);
 
-        for (int i = 0; i < NUM_PARTS; ++i) {
+        for (int i = 0; i < file_separator; ++i) {
             std::string output_filename = this->filename + ".part" + std::to_string(i + 1);
             std::ofstream output(output_filename, std::ios::binary);
             
@@ -88,7 +88,7 @@ public:
                 return;
             }
 
-            std::streamsize bytes_to_read = (i == NUM_PARTS - 1) ? (file_size - i * part_size) : part_size;
+            std::streamsize bytes_to_read = (i == file_separator - 1) ? (file_size - i * part_size) : part_size;
             input.read(buffer.data(), bytes_to_read);
             output.write(buffer.data(), bytes_to_read);
         }
@@ -98,14 +98,14 @@ public:
 
 
 
-    void combine_files() {
+    void combine_files(int file_separator) {
         std::ofstream output(this->filename, std::ios::binary);
         if (!output) {
             std::cerr << "Error creating output file." << std::endl;
             return;
         }
 
-        for (int i = 0; i < NUM_PARTS; ++i) {
+        for (int i = 0; i < file_separator; ++i) {
             std::string input_filename = this->filename + ".part" + std::to_string(i + 1);
             std::ifstream input(input_filename, std::ios::binary);
             
@@ -139,12 +139,14 @@ int main(int argc, char* argv[]) {
     int port = std::stoi(argv[2]);
     const char* filename = argv[3];
 
-    UDPSender sender(ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT, filename);
+    int file_separator = 8;
+
+    UDPSender sender(ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT, filename, file_separator);
 
     auto start = std::chrono::high_resolution_clock::now();
     sender.sendFile();
 
-    sender.combine_files();
+    sender.combine_files(file_separator);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Elapsed time: " << elapsed.count() << "s" << std::endl;
