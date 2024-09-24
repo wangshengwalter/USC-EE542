@@ -111,13 +111,13 @@ public:
         size_t lastdot = std::string(filename).find_last_of(".");
         size_t firstdot = std::string(filename).find_first_of(".");
 
-        if (lastDot == std::string::npos) {
-            return std::string(filename)+"_copy";
-        } else if (firstDot != lastDot) {
-            return std::string(filename)+"_copy";
+        if (lastdot == std::string::npos) {
+            return std::string(filename) + "_copy";
+        } else if (firstdot != lastdot) {
+            return std::string(filename) + "_copy";
         } else {
-            std::string name = filename.substr(0, lastDot);
-            std::string extension = filename.substr(lastDot);
+            std::string name = std::string(filename).substr(0, lastdot);
+            std::string extension = std::string(filename).substr(lastdot);
             return name + "_copy" + extension;
         }
     }
