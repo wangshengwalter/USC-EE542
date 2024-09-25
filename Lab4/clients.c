@@ -110,11 +110,6 @@ public:
                 Packet* packet = &window[next_seq_num % window_size].packet;
                 send_packet(packet);
                 next_seq_num++;
-
-                if (packet->is_last) {
-                    finished = true;
-                    break;
-                }
             }
         }
 
@@ -218,6 +213,9 @@ private:
                         send_packet(packet);
                     }
                 }
+            } else if (ack == -2) {
+                printf("Completed file transfer\n");
+                finished = true;
             } else {
                 printf("Received ACK %d outside window [%d, %d], discarding\n", ack, base.load(), next_seq_num.load());
             }
