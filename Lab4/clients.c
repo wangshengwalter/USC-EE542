@@ -258,12 +258,12 @@ public:
     }
 
     std::vector<std::string> seperate() {
-        std::vector<std::string> filePart_names;
+        std::vector<std::string> filePart_names = {};
 
         std::ifstream input(this->filename, std::ios::binary);
         if (!input) {
             std::cerr << "Error opening input file." << std::endl;
-            return;
+            return filePart_names;
         }
 
         input.seekg(0, std::ios::end);
@@ -280,7 +280,7 @@ public:
             
             if (!output) {
                 std::cerr << "Error creating output file: " << output_filename << std::endl;
-                return;
+                return filePart_names;
             }
 
             std::streamsize bytes_to_read = (i == file_separator - 1) ? (file_size - i * part_size) : part_size;
@@ -334,10 +334,6 @@ public:
 
         std::cout << "Files combined successfully." << std::endl;
     }
-
-
-
-
 };
 
 
