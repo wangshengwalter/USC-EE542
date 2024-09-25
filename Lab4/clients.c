@@ -257,7 +257,8 @@ public:
         this->file_separator = file_separator;
     }
 
-    void sendFile() {
+    std::vector<std::string> seperate() {
+        std::vector<std::string> filePart_names;
 
         std::ifstream input(this->filename, std::ios::binary);
         if (!input) {
@@ -286,12 +287,11 @@ public:
             input.read(buffer.data(), bytes_to_read);
             output.write(buffer.data(), bytes_to_read);
 
-
-            SlidingWindowClient client1 = new SlidingWindowClient(output_filename.c_str(), ip, port, window_size, timeout);
-            client1.run();
+            filePart_names.push_back(output_filename);
         }
 
         std::cout << "File split successfully." << std::endl;
+        return filePart_names;
     }
 
 
@@ -356,9 +356,15 @@ int main(int argc, char* argv[]) {
     UDPSender sender(ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT, filename, file_separator);
 
     auto start = std::chrono::high_resolution_clock::now();
-    sender.sendFile();
+    std::vector<std::string> fileNames = sender.sendFile();
 
-    sender.combine_files(filename, file_separator);
+    // sender.combine_files(filename, file_separator);
+    //create the sliding window for each file part
+    for (int i = 0; i < fileNames.size(); i++) {
+        SlidingWindowClient client(fileNames[i].c_str(), ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT);
+        client.run();
+    }
+
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Elapsed time: " << elapsed.count() << "s" << std::endl;
