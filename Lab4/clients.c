@@ -287,8 +287,8 @@ public:
             output.write(buffer.data(), bytes_to_read);
 
 
-            SlidingWindowClient slidingWindowClient(output_filename.c_str(), ip, port, window_size, timeout);
-            slidingWindowClient.run();
+            SlidingWindowClient client1 = new SlidingWindowClient(output_filename.c_str(), ip, port, window_size, timeout);
+            client1.run();
         }
 
         std::cout << "File split successfully." << std::endl;
