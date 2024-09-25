@@ -352,7 +352,7 @@ int main(int argc, char* argv[]) {
     UDPSender sender(ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT, filename, file_separator);
 
     auto start = std::chrono::high_resolution_clock::now();
-    std::vector<std::string> fileNames = sender.sendFile();
+    std::vector<std::string> fileNames = sender.seperate();
 
     // sender.combine_files(filename, file_separator);
     //create the sliding window for each file part
