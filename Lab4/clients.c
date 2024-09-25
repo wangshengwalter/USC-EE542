@@ -53,7 +53,7 @@ private:
 
 
 public:
-    SlidingWindowClient(const char* filename, const char* ip, int port, int window_size, int time_out) {: 
+    SlidingWindowClient(const char* filename, const char* ip, int port, int window_size, int time_out) {
         //create socket
         sock = create_socket();
         if (sock < 0) {
@@ -93,7 +93,11 @@ public:
 
     ~SlidingWindowClient() {
         close(sock);
-        file.close();
+        if (file != NULL) {
+            fclose(file);
+            file = NULL;
+        }
+        free(window);
     }
 
     void run() {
