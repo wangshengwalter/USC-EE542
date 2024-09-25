@@ -357,8 +357,11 @@ int main(int argc, char* argv[]) {
     // sender.combine_files(filename, file_separator);
     //create the sliding window for each file part
     for (int i = 0; i < fileNames.size(); i++) {
-        SlidingWindowClient client(fileNames[i].c_str(), ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT);
-        client.run();
+        std::thread client([&]() {
+            SlidingWindowClient client(fileNames[i].c_str(), ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT);
+            client.run();
+        });
+        client.join();
     }
 
     auto end = std::chrono::high_resolution_clock::now();
