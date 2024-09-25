@@ -179,7 +179,7 @@ private:
         }
     }
 
-    void send_packets(const char* filename) {
+    void send_packets() {
         while (!finished) {
             for (int i = base; i < next_seq_num; i++) {
                 int index = i % window_size;
@@ -357,14 +357,12 @@ int main(int argc, char* argv[]) {
     // sender.combine_files(filename, file_separator);
     //create the sliding window for each file part
     std::vector<std::thread> threads;
-
     for (int i = 0; i < fileNames.size(); i++) {
-        threads.emplace_back([&, i]() { // Capture i by value to avoid potential reference issues
+        threads.emplace_back([&ip, &port, &fileNames, i]() {
             SlidingWindowClient client(fileNames[i].c_str(), ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT);
-            client.run(); // Assuming run() is a member function of SlidingWindowClient
+            client.run();
         });
     }
-
     // Join all threads after starting them
     for (auto& thread : threads) {
         if (thread.joinable()) {
