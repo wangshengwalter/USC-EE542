@@ -228,22 +228,24 @@ private:
 
 class UDPSender {
 private:
-    int window_size = 0;
+    const char* ip = nullptr;
+    int port = 0;
 
+    int window_size = 0;
     int timeout = 0;
 
     const char* filename = nullptr;
     int file_separator = 0;
-
 public:
     ~UDPSender() {
-        close(sock);
     }
 
     UDPSender(const char* ip, int port, int window_size, float timeout, const char* filename, int file_separator) {
+
+        this->ip = ip;
+        this->port = port;
         
         this->window_size = window_size;
-
         this->timeout = timeout;
 
         this->filename = basename((char*)filename);
