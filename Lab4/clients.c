@@ -287,7 +287,7 @@ public:
             output.write(buffer.data(), bytes_to_read);
 
 
-            SlidingWindowClient slidingWindowClient(output_filename, ip, port, window_size, timeout);
+            SlidingWindowClient slidingWindowClient(output_filename.c_str(), ip, port, window_size, timeout);
             slidingWindowClient.run();
         }
 
