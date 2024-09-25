@@ -120,6 +120,8 @@ public:
 
         send_thread.join();
         receive_thread.join();
+
+        printf("Sub File transfer complete\n");
     }
 
 private:
@@ -358,13 +360,14 @@ int main(int argc, char* argv[]) {
     //create the sliding window for each file part
     std::vector<std::thread> threads;
     for (int i = 0; i < fileNames.size(); i++) {
-        threads.emplace_back([&ip, &port, &fileNames, i]() {
+        threads.push_back(std::thread([ip, port, &fileNames, i]() {
             SlidingWindowClient client(fileNames[i].c_str(), ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT);
             client.run();
-        });
+        }));
     }
-    // Join all threads after starting them
-    for (auto& thread : threads) {
+
+    // Join all threads
+    for (std::thread& thread : threads) {
         if (thread.joinable()) {
             thread.join();
         }
