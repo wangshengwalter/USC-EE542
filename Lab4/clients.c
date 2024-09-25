@@ -357,12 +357,14 @@ int main(int argc, char* argv[]) {
     // sender.combine_files(filename, file_separator);
     //create the sliding window for each file part
     std::vector<std::thread> threads;
+
     for (int i = 0; i < fileNames.size(); i++) {
-        threads.emplace_back([&, i]() { // Pass 'i' by value to avoid issues with capturing
+        threads.emplace_back([&, i]() { // Capture i by value to avoid potential reference issues
             SlidingWindowClient client(fileNames[i].c_str(), ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT);
-            client.run();
+            client.run(); // Assuming run() is a member function of SlidingWindowClient
         });
     }
+
     // Join all threads after starting them
     for (auto& thread : threads) {
         if (thread.joinable()) {
