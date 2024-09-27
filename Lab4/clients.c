@@ -11,26 +11,122 @@
 #include <atomic>
 #include <cmath>
 
+#define MAX_PACKET_SIZE 8500
+#define MAX_FILENAME_SIZE 20
 #define DEFAULT_WINDOW_SIZE 300
 #define DEFAULT_TIMEOUT 260.0
-#define MAX_FILENAME_SIZE 50
-#define MAX_PACKET_SIZE 8500
+
+const int srvInitedACK = -3;
+const int srvDoneACK = -2;
+const int timeoutACK = -1;
+
 
 typedef struct {
+    int subfile_num;
+    char filename[MAX_FILENAME_SIZE];
+} Head;
+
+typedef struct {
+    int subfile_index
     int seq_num;
     int is_last;
     int data_size;
-    char filename[MAX_FILENAME_SIZE];
-    char data[MAX_PACKET_SIZE - 3 * sizeof(int) - MAX_FILENAME_SIZE];
-} Packet;
+    char data[MAX_PACKET_SIZE - 4 * sizeof(int)];
+} DataPacket;
 
 
 typedef struct {
-    Packet packet;
+    DataPacket datapacket;
     int acked;
     struct timeval send_time;
     std::mutex lock;
 } WindowSlot;
+
+
+class HeadSender {
+private:
+    int sock;
+    struct sockaddr_in server_addr;
+
+    const char* filename = nullptr;
+    int subfile_num = 0;
+
+public:
+    HeadSender(const char* ip, int port, const char* filename, int subfile_num) {
+        //create socket
+        sock = create_socket();
+        if (sock < 0) {
+            perror("Failed to create socket");
+            return;
+        }
+        
+        memset(&server_addr, 0, sizeof(server_addr));
+        server_addr.sin_family = AF_INET;
+        server_addr.sin_port = htons(port);
+        inet_pton(AF_INET, ip, &server_addr.sin_addr);
+
+        //store the filename and open the file
+        this->filename = basename((char*)filename);
+        if (this->filename == NULL) {
+            perror("Failed to get base filename");
+            return;
+        }
+        
+        this->subfile_num = subfile_num;
+    }
+
+    ~HeadSender() {
+        close(sock);
+    }
+
+    void run() {
+        send_head();
+    }
+
+private:
+    int receive_ack() {
+        fd_set readfds;
+        FD_ZERO(&readfds);
+        FD_SET(sock, &readfds);
+
+        struct timeval tv;
+        tv.tv_sec = 0;
+        tv.tv_usec = 1000*0; // 1ms
+
+        int activity = select(sock + 1, &readfds, NULL, NULL, &tv);
+        if (activity < 0) {
+            perror("select error");
+            exit(EXIT_FAILURE);
+        } else if (activity == 0) {
+            return -1;  // Timeout
+        } else {
+            int ack;
+            if (recv(sock, &ack, sizeof(ack), 0) < 0) {
+                perror("recv failed");
+                exit(EXIT_FAILURE);
+            }
+            return ack;
+        }
+    }
+
+    void send_head() {
+        Head head;
+        head.subfile_num = subfile_num;
+        strncpy(head.filename, fileFragName, MAX_FILENAME_SIZE - 1);
+        head.filename[MAX_FILENAME_SIZE - 1] = '\0';
+
+        while(1) {
+            if (sendto(sock, &head, sizeof(Head), 0, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+                perror("sendto failed");
+                exit(EXIT_FAILURE);
+            }
+            printf("Sent head packet\n");
+
+            int ack = receive_ack();
+            if (ack == -3) break;  //server inted successfully
+        }
+    }
+};
 
 
 
@@ -42,6 +138,7 @@ private:
 
     const char* fileFragName = nullptr;
     FILE* file = nullptr;
+    int subfile_index = -1;
 
     int window_size = 0;
     WindowSlot* window = nullptr;
@@ -53,7 +150,7 @@ private:
 
 
 public:
-    SlidingWindowClient(const char* filename, const char* ip, int port, int window_size, int time_out) {
+    SlidingWindowClient(const char* filename, const char* ip, int port, int window_size, int time_out, int subfile_index) {
         //create socket
         sock = create_socket();
         if (sock < 0) {
@@ -78,6 +175,9 @@ public:
             printf("Failed to open file '%s': %s\n", fileFragName, strerror(errno));
             exit(EXIT_FAILURE);
         }
+
+        //store the subfile index
+        this->subfile_index = subfile_index;
 
         //create the window
         this->window_size = window_size;
@@ -107,8 +207,8 @@ public:
         while (!finished) {
             while (next_seq_num < base + window_size && !finished) {
                 setPacket(next_seq_num);
-                Packet* packet = &window[next_seq_num % window_size].packet;
-                send_packet(packet);
+                DataPacket* datapacket = &window[next_seq_num % window_size].datapacket;
+                send_packet(datapacket);
                 next_seq_num++;
             }
         }
@@ -131,24 +231,24 @@ private:
 
     void setPacket(int next_seq_num) {
         std::lock_guard<std::mutex> lock(window[next_seq_num % window_size].lock);
-        Packet* packet = &window[next_seq_num % window_size].packet;
-        packet->seq_num = next_seq_num;
-        packet->data_size = fread(packet->data, 1, sizeof(packet->data), file);
-        packet->is_last = feof(file);
-        strncpy(packet->filename, fileFragName, MAX_FILENAME_SIZE - 1);
-        packet->filename[MAX_FILENAME_SIZE - 1] = '\0';
+        DataPacket* datapacket = &window[next_seq_num % window_size].datapacket;
+        datapacket->subfile_index = subfile_index;
+        datapacket->seq_num = next_seq_num;
+        datapacket->data_size = fread(datapacket->data, 1, sizeof(datapacket->data), file);
+        datapacket->is_last = feof(file);
+
         window[next_seq_num % window_size].acked = 0;
     }
 
-    void send_packet(const Packet* packet) {
-        if (packet == nullptr){
+    void send_packet(const DataPacket* datapacket) {
+        if (datapacket == nullptr){
             return;
         }
-        if (sendto(sock, packet, sizeof(Packet), 0, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        if (sendto(sock, datapacket, sizeof(DataPacket), 0, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
             perror("sendto failed");
             exit(EXIT_FAILURE);
         }
-        printf("Sent packet %d (%d bytes)\n", packet->seq_num, packet->data_size);
+        printf("Sent packet %d (%d bytes)\n", datapacket->seq_num, datapacket->data_size);
     }
 
     int receive_ack() {
@@ -176,14 +276,15 @@ private:
         }
     }
 
+
     void send_packets() {
         while (!finished) {
             for (int i = base; i < next_seq_num; i++) {
                 int index = i % window_size;
                 std::lock_guard<std::mutex> lock(window[index].lock);
                 if (!window[index].acked) {
-                    Packet* packet = &window[index].packet;
-                    send_packet(packet);
+                    DataPacket* datapacket = &window[index].datapacket;
+                    send_packet(datapacket);
                 }
             }
         }
@@ -209,8 +310,8 @@ private:
                     int index = i % window_size;
                     std::lock_guard<std::mutex> lock(window[index].lock);
                     if (!window[index].acked) {
-                        Packet* packet = &window[index].packet;
-                        send_packet(packet);
+                        DataPacket* datapacket = &window[index].datapacket;
+                        send_packet(datapacket);
                     }
                 }
             } else if (ack == -2) {
@@ -226,28 +327,15 @@ private:
 
 
 
-class UDPSender {
+class FileOperator {
 private:
-    const char* ip = nullptr;
-    int port = 0;
-
-    int window_size = 0;
-    int timeout = 0;
-
     const char* filename = nullptr;
     int file_separator = 0;
 public:
-    ~UDPSender() {
+    ~FileOperator() {
     }
 
-    UDPSender(const char* ip, int port, int window_size, float timeout, const char* filename, int file_separator) {
-
-        this->ip = ip;
-        this->port = port;
-        
-        this->window_size = window_size;
-        this->timeout = timeout;
-
+    FileOperator(const char* filename, int file_separator) {
         this->filename = basename((char*)filename);
         if (this->filename == NULL) {
             perror("Failed to get base filename");
@@ -336,6 +424,23 @@ public:
     }
 };
 
+std::vector<std::string> fileNames = {};
+
+
+
+void init(const char* ip, int port, const char* filename, int file_separator) {
+    HeadSender headSender(ip, port, filename, file_separator);
+    headSender.run();
+
+    FileOperator filedevider(filename, file_separator);
+    fileNames = filedevider.seperate();
+
+    headSender.join();  //wait for the server to init
+
+    printf("Server inited\n");
+}
+
+
 
 int main(int argc, char* argv[]) {
     if (argc != 4) {
@@ -349,21 +454,20 @@ int main(int argc, char* argv[]) {
 
     int file_separator = 8;
 
-    UDPSender sender(ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT, filename, file_separator);
-
     auto start = std::chrono::high_resolution_clock::now();
-    std::vector<std::string> fileNames = sender.seperate();
+
+    init(ip, port, filename, file_separator);
 
     // sender.combine_files(filename, file_separator);
     //create the sliding window for each file part
     std::vector<std::thread> threads;
     for (int i = 0; i < fileNames.size(); i++) {
         threads.push_back(std::thread([ip, port, &fileNames, i]() {
-            SlidingWindowClient client(fileNames[i].c_str(), ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT);
+            SlidingWindowClient client(fileNames[i].c_str(), ip, port, DEFAULT_WINDOW_SIZE, DEFAULT_TIMEOUT, i);
             client.run();
         }));
     }
-
+    
     // Join all threads
     for (std::thread& thread : threads) {
         if (thread.joinable()) {
