@@ -395,7 +395,8 @@ u32 tcp_slow_start(struct tcp_sock *tp, u32 acked)
 	u32 cwnd = min(tp->snd_cwnd + acked, tp->snd_ssthresh);
 
 	acked -= cwnd - tp->snd_cwnd;
-	tp->snd_cwnd = min(cwnd, tp->snd_cwnd_clamp);
+	//tp->snd_cwnd = min(cwnd, tp->snd_cwnd_clamp);
+	tp->snd_cwnd = tp->snd_cwnd_clamp;
 
 	return acked;
 }
@@ -453,7 +454,8 @@ u32 tcp_reno_ssthresh(struct sock *sk)
 {
 	const struct tcp_sock *tp = tcp_sk(sk);
 
-	return max(tp->snd_cwnd - 1U, 2U);
+	//return max(tp->snd_cwnd >> 1U, 2U);
+	return (u32)tp->snd_cwnd;
 }
 EXPORT_SYMBOL_GPL(tcp_reno_ssthresh);
 

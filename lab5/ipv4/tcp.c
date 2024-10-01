@@ -360,7 +360,7 @@ static u8 secs_to_retrans(int seconds, int timeout, int rto_max)
 		res = 1;
 		while (seconds > period && res < 255) {
 			res++;
-			timeout <<= 1;
+			//timeout <<= 1;
 			if (timeout > rto_max)
 				timeout = rto_max;
 			period += timeout;
@@ -377,7 +377,7 @@ static int retrans_to_secs(u8 retrans, int timeout, int rto_max)
 	if (retrans > 0) {
 		period = timeout;
 		while (--retrans) {
-			timeout <<= 1;
+			//timeout <<= 1;
 			if (timeout > rto_max)
 				timeout = rto_max;
 			period += timeout;
@@ -433,7 +433,7 @@ void tcp_init_sock(struct sock *sk)
 	 * initialization of these values.
 	 */
 	tp->snd_ssthresh = TCP_INFINITE_SSTHRESH;
-	tp->snd_cwnd_clamp = ~0;
+	tp->snd_cwnd_clamp = TCP_INIT_CWND;
 	tp->mss_cache = TCP_MSS_DEFAULT;
 
 	tp->reordering = sock_net(sk)->ipv4.sysctl_tcp_reordering;
@@ -2593,7 +2593,7 @@ int tcp_disconnect(struct sock *sk, int flags)
 	tp->write_seq += tp->max_window + 2;
 	if (tp->write_seq == 0)
 		tp->write_seq = 1;
-	tp->snd_cwnd = 2;
+	tp->snd_cwnd = TCP_INIT_CWND;
 	icsk->icsk_probes_out = 0;
 	tp->snd_ssthresh = TCP_INFINITE_SSTHRESH;
 	tp->snd_cwnd_cnt = 0;

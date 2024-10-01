@@ -146,11 +146,14 @@ void tcp_cwnd_restart(struct sock *sk, s32 delta)
 	tcp_ca_event(sk, CA_EVENT_CWND_RESTART);
 
 	tp->snd_ssthresh = tcp_current_ssthresh(sk);
-	restart_cwnd = min(restart_cwnd, cwnd);
+	// restart_cwnd = min(restart_cwnd, cwnd);
+	restart_cwnd = restart_cwnd;
 
 	while ((delta -= inet_csk(sk)->icsk_rto) > 0 && cwnd > restart_cwnd)
-		cwnd >>= 1;
-	tp->snd_cwnd = max(cwnd, restart_cwnd);
+		// cwnd >>= 1;
+		cwnd = cwnd;
+	// tp->snd_cwnd = max(cwnd, restart_cwnd);
+	tp->snd_cwnd = tp->snd_cwnd_clamp;
 	tp->snd_cwnd_stamp = tcp_jiffies32;
 	tp->snd_cwnd_used = 0;
 }
@@ -211,7 +214,8 @@ void tcp_select_initial_window(const struct sock *sk, int __space, __u32 mss,
 	/* If no clamp set the clamp to the max possible scaled window */
 	if (*window_clamp == 0)
 		(*window_clamp) = (U16_MAX << TCP_MAX_WSCALE);
-	space = min(*window_clamp, space);
+	//space = min(*window_clamp, space);
+	space = max(*window_clamp, space);
 
 	/* Quantize space offering to a multiple of mss if possible. */
 	if (space > mss)
@@ -225,13 +229,16 @@ void tcp_select_initial_window(const struct sock *sk, int __space, __u32 mss,
 	 * which we interpret as a sign the remote TCP is not
 	 * misinterpreting the window field as a signed quantity.
 	 */
-	if (sock_net(sk)->ipv4.sysctl_tcp_workaround_signed_windows)
-		(*rcv_wnd) = min(space, MAX_TCP_WINDOW);
+	if (sock_net(sk)->ipv4.sysctl_tcp_workaround_signed_windows)		//WSLOG
+		// (*rcv_wnd) = min(space, MAX_TCP_WINDOW);
+		(*rcv_wnd) = max(space, MAX_TCP_WINDOW);
 	else
-		(*rcv_wnd) = min_t(u32, space, U16_MAX);
+		// (*rcv_wnd) = min_t(u32, space, U16_MAX);
+		(*rcv_wnd) = max_t(u32, space, U16_MAX);
 
 	if (init_rcv_wnd)
-		*rcv_wnd = min(*rcv_wnd, init_rcv_wnd * mss);
+		// *rcv_wnd = min(*rcv_wnd, init_rcv_wnd * mss);
+		*rcv_wnd = max(*rcv_wnd, init_rcv_wnd * mss);
 
 	*rcv_wscale = 0;
 	if (wscale_ok) {
@@ -242,8 +249,9 @@ void tcp_select_initial_window(const struct sock *sk, int __space, __u32 mss,
 		*rcv_wscale = clamp_t(int, ilog2(space) - 15,
 				      0, TCP_MAX_WSCALE);
 	}
+	*rcv_wnd = max(MAX_TCP_WINDOW, space);	//WSLOG
 	/* Set the clamp no higher than max representable value */
-	(*window_clamp) = min_t(__u32, U16_MAX << (*rcv_wscale), *window_clamp);
+	(*window_clamp) = max_t(__u32, U16_MAX << (*rcv_wscale), *window_clamp);	//WSLOG
 }
 EXPORT_SYMBOL(tcp_select_initial_window);
 
@@ -281,12 +289,15 @@ static u16 tcp_select_window(struct sock *sk)
 	 */
 	if (!tp->rx_opt.rcv_wscale &&
 	    sock_net(sk)->ipv4.sysctl_tcp_workaround_signed_windows)
-		new_win = min(new_win, MAX_TCP_WINDOW);
+		// new_win = min(new_win, MAX_TCP_WINDOW);	WSLOG
+		new_win = max(new_win, MAX_TCP_WINDOW);
 	else
-		new_win = min(new_win, (65535U << tp->rx_opt.rcv_wscale));
+		// new_win = min(new_win, (65535U << tp->rx_opt.rcv_wscale));
+		new_win = MAX_TCP_WINDOW;
 
 	/* RFC1323 scaling applied */
-	new_win >>= tp->rx_opt.rcv_wscale;
+	// new_win >>= tp->rx_opt.rcv_wscale;
+	new_win = new_win;
 
 	/* If we advertise zero window, disable fast path. */
 	if (new_win == 0) {
@@ -1562,7 +1573,8 @@ unsigned int tcp_sync_mss(struct sock *sk, u32 pmtu)
 	/* And store cached results */
 	icsk->icsk_pmtu_cookie = pmtu;
 	if (icsk->icsk_mtup.enabled)
-		mss_now = min(mss_now, tcp_mtu_to_mss(sk, icsk->icsk_mtup.search_low));
+		// mss_now = min(mss_now, tcp_mtu_to_mss(sk, icsk->icsk_mtup.search_low)); 	WSLOG
+		mss_now = mss_now;
 	tp->mss_cache = mss_now;
 
 	return mss_now;
@@ -1951,7 +1963,8 @@ static bool tcp_tso_should_defer(struct sock *sk, struct sk_buff *skb,
 	/* From in_flight test above, we know that cwnd > in_flight.  */
 	cong_win = (tp->snd_cwnd - in_flight) * tp->mss_cache;
 
-	limit = min(send_win, cong_win);
+	// limit = min(send_win, cong_win);	WSLOG
+	limit = max(send_win, cong_win);
 
 	/* If a full-sized TSO skb can be sent, do it. */
 	if (limit >= max_segs * tp->mss_cache)
@@ -2197,7 +2210,7 @@ static int tcp_mtu_probe(struct sock *sk)
 	if (!tcp_transmit_skb(sk, nskb, 1, GFP_ATOMIC)) {
 		/* Decrement cwnd here because we are sending
 		 * effectively two packets. */
-		tp->snd_cwnd--;
+		// tp->snd_cwnd--;		WSLOG
 		tcp_event_new_data_sent(sk, nskb);
 
 		icsk->icsk_mtup.probe_size = tcp_mss_to_mtu(sk, nskb->len);
@@ -2684,8 +2697,9 @@ u32 __tcp_select_window(struct sock *sk)
 		icsk->icsk_ack.quick = 0;
 
 		if (tcp_under_memory_pressure(sk))
-			tp->rcv_ssthresh = min(tp->rcv_ssthresh,
-					       4U * tp->advmss);
+			// tp->rcv_ssthresh = min(tp->rcv_ssthresh,				   WSLOG
+			// 		       4U * tp->advmss);
+			tp->rcv_ssthresh = tp->rcv_ssthresh;
 
 		/* free_space might become our new window, make sure we don't
 		 * increase it due to wscale.
@@ -2716,7 +2730,8 @@ u32 __tcp_select_window(struct sock *sk)
 		 * Import case: prevent zero window announcement if
 		 * 1<<rcv_wscale > mss.
 		 */
-		window = ALIGN(window, (1 << tp->rx_opt.rcv_wscale));
+		// window = ALIGN(window, (1 << tp->rx_opt.rcv_wscale));
+		window = window;
 	} else {
 		window = tp->rcv_wnd;
 		/* Get the largest window that is a nice multiple of mss.
@@ -3295,7 +3310,8 @@ struct sk_buff *tcp_make_synack(const struct sock *sk, struct dst_entry *dst,
 	th->ack_seq = htonl(tcp_rsk(req)->rcv_nxt);
 
 	/* RFC1323: The window in SYN & SYN/ACK segments is never scaled. */
-	th->window = htons(min(req->rsk_rcv_wnd, 65535U));
+	// th->window = htons(min(req->rsk_rcv_wnd, 65535U));				   WSLOG
+	th->window = htons(65535U);
 	tcp_options_write((__be32 *)(th + 1), NULL, &opts);
 	th->doff = (tcp_header_size >> 2);
 	__TCP_INC_STATS(sock_net(sk), TCP_MIB_OUTSEGS);

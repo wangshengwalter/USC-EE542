@@ -168,7 +168,8 @@ static void tcp_veno_cong_avoid(struct sock *sk, u32 ack, u32 acked)
 				if (tp->snd_cwnd_cnt >= tp->snd_cwnd) {
 					if (veno->inc &&
 					    tp->snd_cwnd < tp->snd_cwnd_clamp) {
-						tp->snd_cwnd++;
+						// tp->snd_cwnd++;			WSLOG
+						tp->snd_cwnd += 5;
 						veno->inc = 0;
 					} else
 						veno->inc = 1;
@@ -195,10 +196,12 @@ static u32 tcp_veno_ssthresh(struct sock *sk)
 
 	if (veno->diff < beta)
 		/* in "non-congestive state", cut cwnd by 1/5 */
-		return max(tp->snd_cwnd * 4 / 5, 2U);
+		// return max(tp->snd_cwnd * 4 / 5, 2U);			WSLOG
+		return tp->snd_cwnd_clamp;
 	else
 		/* in "congestive state", cut cwnd by 1/2 */
-		return max(tp->snd_cwnd >> 1U, 2U);
+		// return max(tp->snd_cwnd >> 1U, 2U);			WSLOG
+		return tp->snd_cwnd_clamp;
 }
 
 static struct tcp_congestion_ops tcp_veno __read_mostly = {

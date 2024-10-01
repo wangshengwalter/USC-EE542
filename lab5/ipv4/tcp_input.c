@@ -12,7 +12,7 @@
  *		Corey Minyard <wf-rch!minyard@relay.EU.net>
  *		Florian La Roche, <flla@stud.uni-sb.de>
  *		Charles Hedrick, <hedrick@klinzhai.rutgers.edu>
- *		Linus Torvalds, <torvalds@cs.helsinki.fi>
+ *		Linus Torvalds, <torvalds@cs.helsinki.fi> 
  *		Alan Cox, <gw4pts@gw4pts.ampr.org>
  *		Matthew Dillon, <dillon@apollo.west.oic.com>
  *		Arnt Gulbrandsen, <agulbra@nvg.unit.no>
@@ -211,7 +211,7 @@ static void tcp_incr_quickack(struct sock *sk, unsigned int max_quickacks)
 
 	if (quickacks == 0)
 		quickacks = 2;
-	quickacks = min(quickacks, max_quickacks);
+	quickacks = max_quickacks;
 	if (quickacks > icsk->icsk_ack.quick)
 		icsk->icsk_ack.quick = quickacks;
 }
@@ -353,7 +353,7 @@ static void tcp_sndbuf_expand(struct sock *sk)
 	sndmem *= nr_segs * per_mss;
 
 	if (sk->sk_sndbuf < sndmem)
-		sk->sk_sndbuf = min(sndmem, sock_net(sk)->ipv4.sysctl_tcp_wmem[2]);
+		sk->sk_sndbuf = sock_net(sk)->ipv4.sysctl_tcp_wmem[2];
 }
 
 /* 2. Tuning advertised window (window_clamp, rcv_ssthresh)
@@ -394,7 +394,7 @@ static int __tcp_grow_window(const struct sock *sk, const struct sk_buff *skb)
 			return 2 * inet_csk(sk)->icsk_ack.rcv_mss;
 
 		truesize >>= 1;
-		window >>= 1;
+		window = tp->rcv_ssthresh;
 	}
 	return 0;
 }
@@ -420,7 +420,8 @@ static void tcp_grow_window(struct sock *sk, const struct sk_buff *skb)
 
 		if (incr) {
 			incr = max_t(int, incr, 2 * skb->len);
-			tp->rcv_ssthresh += min(room, incr);
+			//tp->rcv_ssthresh += min(room, incr);
+			tp->rcv_ssthresh = tp->window_clamp;
 			inet_csk(sk)->icsk_ack.quick |= 1;
 		}
 	}
@@ -460,7 +461,8 @@ void tcp_init_buffer_space(struct sock *sk)
 	    tp->window_clamp + tp->advmss > maxwin)
 		tp->window_clamp = max(2 * tp->advmss, maxwin - tp->advmss);
 
-	tp->rcv_ssthresh = min(tp->rcv_ssthresh, tp->window_clamp);
+	//tp->rcv_ssthresh = min(tp->rcv_ssthresh, tp->window_clamp);
+	tp->rcv_ssthresh = tp->window_clamp;
 	tp->snd_cwnd_stamp = tcp_jiffies32;
 }
 
@@ -477,8 +479,8 @@ static void tcp_clamp_window(struct sock *sk)
 	    !(sk->sk_userlocks & SOCK_RCVBUF_LOCK) &&
 	    !tcp_under_memory_pressure(sk) &&
 	    sk_memory_allocated(sk) < sk_prot_mem_limits(sk, 0)) {
-		sk->sk_rcvbuf = min(atomic_read(&sk->sk_rmem_alloc),
-				    net->ipv4.sysctl_tcp_rmem[2]);
+		//sk->sk_rcvbuf = min(atomic_read(&sk->sk_rmem_alloc), net->ipv4.sysctl_tcp_rmem[2]);
+		sk->sk_rcvbuf = net->ipv4.sysctl_tcp_rmem[2];
 	}
 	if (atomic_read(&sk->sk_rmem_alloc) > sk->sk_rcvbuf)
 		tp->rcv_ssthresh = min(tp->window_clamp, 2U * tp->advmss);
@@ -854,7 +856,8 @@ __u32 tcp_init_cwnd(const struct tcp_sock *tp, const struct dst_entry *dst)
 
 	if (!cwnd)
 		cwnd = TCP_INIT_CWND;
-	return min_t(__u32, cwnd, tp->snd_cwnd_clamp);
+	//return min_t(__u32, cwnd, tp->snd_cwnd_clamp);
+	return tp->snd_cwnd_clamp;
 }
 
 /* Take a notice that peer is sending D-SACKs */
@@ -1993,7 +1996,8 @@ void tcp_enter_loss(struct sock *sk)
 		tcp_ca_event(sk, CA_EVENT_LOSS);
 		tcp_init_undo(tp);
 	}
-	tp->snd_cwnd	   = tcp_packets_in_flight(tp) + 1;
+	//tp->snd_cwnd	   = tcp_packets_in_flight(tp) + 1;  WSLOG
+	tp->snd_cwnd	   = tp->snd_cwnd_clamp;
 	tp->snd_cwnd_cnt   = 0;
 	tp->snd_cwnd_stamp = tcp_jiffies32;
 
@@ -2440,7 +2444,6 @@ static bool tcp_try_undo_loss(struct sock *sk, bool frto_undo)
 	return false;
 }
 
-//TODO
 /* The cwnd reduction in CWR and Recovery uses the PRR algorithm in RFC 6937.
  * It computes the number of packets to send (sndcnt) based on packets newly
  * delivered:
@@ -2450,7 +2453,6 @@ static bool tcp_try_undo_loss(struct sock *sk, bool frto_undo)
  *      But when the retransmits are acked without further losses, PRR
  *      slow starts cwnd up to ssthresh to speed up the recovery.
  */
-
 static void tcp_init_cwnd_reduction(struct sock *sk)
 {
 	struct tcp_sock *tp = tcp_sk(sk);
@@ -2569,9 +2571,10 @@ static void tcp_mtup_probe_success(struct sock *sk)
 
 	/* FIXME: breaks with very large cwnd */
 	tp->prior_ssthresh = tcp_current_ssthresh(sk);
-	tp->snd_cwnd = tp->snd_cwnd *
-		       tcp_mss_to_mtu(sk, tp->mss_cache) /
-		       icsk->icsk_mtup.probe_size;
+	// tp->snd_cwnd = tp->snd_cwnd *
+	// 	       tcp_mss_to_mtu(sk, tp->mss_cache) /
+	// 	       icsk->icsk_mtup.probe_size;
+	tp->snd_cwnd = tp->snd_cwnd_clamp;
 	tp->snd_cwnd_cnt = 0;
 	tp->snd_cwnd_stamp = tcp_jiffies32;
 	tp->snd_ssthresh = tcp_current_ssthresh(sk);
@@ -2630,7 +2633,6 @@ void tcp_simple_retransmit(struct sock *sk)
 }
 EXPORT_SYMBOL(tcp_simple_retransmit);
 
-//TODO
 void tcp_enter_recovery(struct sock *sk, bool ece_ack)
 {
 	struct tcp_sock *tp = tcp_sk(sk);

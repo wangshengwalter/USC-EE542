@@ -500,7 +500,8 @@ struct sock *tcp_create_openreq_child(const struct sock *sk,
 	 * algorithms that we must have the following bandaid to talk
 	 * efficiently to them.  -DaveM
 	 */
-	newtp->snd_cwnd = TCP_INIT_CWND;
+	// newtp->snd_cwnd = TCP_INIT_CWND;
+	newtp->snd_cwnd = newtp->snd_cwnd_clamp;
 	newtp->snd_cwnd_cnt = 0;
 
 	/* There's a bubble in the pipe until at least the first ACK. */

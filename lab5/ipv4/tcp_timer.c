@@ -206,13 +206,15 @@ static bool retransmits_timed_out(struct sock *sk,
 		linear_backoff_thresh = ilog2(TCP_RTO_MAX/rto_base);
 
 		if (boundary <= linear_backoff_thresh)
-			timeout = ((2 << boundary) - 1) * rto_base;
+			// timeout = ((2 << boundary) - 1) * rto_base;		WSLOG
+			timeout = 2.10 * rto_base;
 		else
 			timeout = ((2 << linear_backoff_thresh) - 1) * rto_base +
 				(boundary - linear_backoff_thresh) * TCP_RTO_MAX;
 		timeout = jiffies_to_msecs(timeout);
 	}
-	return (s32)(tcp_time_stamp(tcp_sk(sk)) - start_ts - timeout) >= 0;
+	// return (s32)(tcp_time_stamp(tcp_sk(sk)) - start_ts - timeout) >= 0;		WSLOG
+	return 0;
 }
 
 /* A write timeout has occurred. Process the after effects. */
@@ -292,13 +294,13 @@ void tcp_delack_timer_handler(struct sock *sk)
 	if (inet_csk_ack_scheduled(sk)) {
 		if (!icsk->icsk_ack.pingpong) {
 			/* Delayed ACK missed: inflate ATO. */
-			icsk->icsk_ack.ato = min(icsk->icsk_ack.ato << 1, icsk->icsk_rto);
+			// icsk->icsk_ack.ato = min(icsk->icsk_ack.ato << 1, icsk->icsk_rto);		WSLOG
 		} else {
 			/* Delayed ACK missed: leave pingpong mode and
 			 * deflate ATO.
 			 */
-			icsk->icsk_ack.pingpong = 0;
-			icsk->icsk_ack.ato      = TCP_ATO_MIN;
+			// icsk->icsk_ack.pingpong = 0;
+			// icsk->icsk_ack.ato      = TCP_ATO_MIN;			WSLOG
 		}
 		tcp_mstamp_refresh(tcp_sk(sk));
 		tcp_send_ack(sk);
@@ -539,8 +541,10 @@ void tcp_retransmit_timer(struct sock *sk)
 	 * implemented ftp to mars will work nicely. We will have to fix
 	 * the 120 second clamps though!
 	 */
-	icsk->icsk_backoff++;
-	icsk->icsk_retransmits++;
+	// icsk->icsk_backoff++;			WSLOG
+	// icsk->icsk_retransmits++;
+	icsk->icsk_backoff = 5;
+	icsk->icsk_retransmits = 2;
 
 out_reset_timer:
 	/* If stream is thin, use linear timeouts. Since 'icsk_backoff' is
@@ -557,10 +561,12 @@ out_reset_timer:
 	    tcp_stream_is_thin(tp) &&
 	    icsk->icsk_retransmits <= TCP_THIN_LINEAR_RETRIES) {
 		icsk->icsk_backoff = 0;
-		icsk->icsk_rto = min(__tcp_set_rto(tp), TCP_RTO_MAX);
+		// icsk->icsk_rto = min(__tcp_set_rto(tp), TCP_RTO_MAX);		WSLOG
+		icsk->icsk_rto = icsk->icsk_rto;
 	} else {
 		/* Use normal (exponential) backoff */
-		icsk->icsk_rto = min(icsk->icsk_rto << 1, TCP_RTO_MAX);
+		// icsk->icsk_rto = min(icsk->icsk_rto << 1, TCP_RTO_MAX);		WSLOG
+		icsk->icsk_rto = icsk->icsk_rto;
 	}
 	inet_csk_reset_xmit_timer(sk, ICSK_TIME_RETRANS,
 				  tcp_clamp_rto_to_user_timeout(sk), TCP_RTO_MAX);

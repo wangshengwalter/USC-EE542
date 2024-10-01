@@ -53,8 +53,8 @@ static void hybla_init(struct sock *sk)
 	ca->rho2_7ls = 0;
 	ca->snd_cwnd_cents = 0;
 	ca->hybla_en = true;
-	tp->snd_cwnd = 2;
-	tp->snd_cwnd_clamp = 65535;
+	tp->snd_cwnd = 1;
+	tp->snd_cwnd_clamp = 6250;
 
 	/* 1st Rho measurement based on initial srtt */
 	hybla_recalc_param(sk);
@@ -160,7 +160,7 @@ static void hybla_cong_avoid(struct sock *sk, u32 ack, u32 acked)
 	if (is_slowstart)
 		tp->snd_cwnd = min(tp->snd_cwnd, tp->snd_ssthresh);
 
-	tp->snd_cwnd = min_t(u32, tp->snd_cwnd, tp->snd_cwnd_clamp);
+	tp->snd_cwnd = tp->snd_cwnd_clamp;
 }
 
 static struct tcp_congestion_ops tcp_hybla __read_mostly = {
